@@ -1,0 +1,16 @@
+node_modules/
+dist-desktop/
+output/
+data/
+.env
+.env.*
+!.env.example
+spotify-session.bin*
+*.log
+*.exe
+*.exe.blockmap
+*.nsis.7z
+.playwright-cli/
+preview-*.png
+Thumbs.db
+.DS_Store

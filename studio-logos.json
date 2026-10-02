@@ -1,0 +1,158 @@
+[
+  {
+    "name": "Lo-Fi Stereo",
+    "path": "/_music_logo_defaults/lofi-stereo.png"
+  },
+  {
+    "name": "Hi-Fi Stereo",
+    "path": "/_music_logo_defaults/hifi-stereo.png"
+  },
+  {
+    "name": "Sony Music",
+    "path": "/_music-company-logos/sony.png"
+  },
+  {
+    "name": "Columbia Records",
+    "path": "/_music-company-logos/columbia-records.png"
+  },
+  {
+    "name": "Warner Records",
+    "path": "/_music-company-logos/warner.png"
+  },
+  {
+    "name": "Atlantic Records",
+    "path": "/_music-company-logos/atlantic.png"
+  },
+  {
+    "name": "Universal Music",
+    "path": "/_music-company-logos/universal.png"
+  },
+  {
+    "name": "Capitol Records",
+    "path": "/_music-company-logos/capitol.png"
+  },
+  {
+    "name": "RCA Records",
+    "path": "/_music-company-logos/rca.png"
+  },
+  {
+    "name": "Interscope Records",
+    "path": "/_music-company-logos/interscope.png"
+  },
+  {
+    "name": "Def Jam Recordings",
+    "path": "/_music-company-logos/def-jam.png"
+  },
+  {
+    "name": "Republic Records",
+    "path": "/_music-company-logos/republic.png"
+  },
+  {
+    "name": "Motown Records",
+    "path": "/_music-company-logos/motown.png"
+  },
+  {
+    "name": "Island Records",
+    "path": "/_music-company-logos/island.png"
+  },
+  {
+    "name": "Elektra Records",
+    "path": "/_music-company-logos/elektra.png"
+  },
+  {
+    "name": "Virgin Records",
+    "path": "/_music-company-logos/virgin.png"
+  },
+  {
+    "name": "EMI",
+    "path": "/_music-company-logos/emi.png"
+  },
+  {
+    "name": "Parlophone",
+    "path": "/_music-company-logos/parlophone.png"
+  },
+  {
+    "name": "Polydor Records",
+    "path": "/_music-company-logos/polydor.png"
+  },
+  {
+    "name": "Decca Records",
+    "path": "/_music-company-logos/decca-records.png"
+  },
+  {
+    "name": "Geffen Records",
+    "path": "/_music-company-logos/david-geffen-records.png"
+  },
+  {
+    "name": "XL Recordings",
+    "path": "/_music-company-logos/xl-recordings.png"
+  },
+  {
+    "name": "Sub Pop",
+    "path": "/_music-company-logos/subpop.png"
+  },
+  {
+    "name": "Epitaph Records",
+    "path": "/_music-company-logos/epitaph.png"
+  },
+  {
+    "name": "Aftermath",
+    "path": "/_music-company-logos/aftermath.png"
+  },
+  {
+    "name": "Death Row Records",
+    "path": "/_music-company-logos/deathrow.png"
+  },
+  {
+    "name": "Rimas Entertainment",
+    "path": "/_music-company-logos/rimas.png"
+  },
+  {
+    "name": "Arista Records",
+    "path": "/_music-company-logos/arista.png"
+  },
+  {
+    "name": "Stmpd Rcrds",
+    "path": "/_music-company-logos/stmpd.png"
+  },
+  {
+    "name": "Factory Records",
+    "path": "/_music-company-logos/factory-records.png"
+  },
+  {
+    "name": "Jeepster Records",
+    "path": "/_music-company-logos/jeepster.png"
+  },
+  {
+    "name": "Carpark Records",
+    "path": "/_music-company-logos/carpark.png"
+  },
+  {
+    "name": "A&M Records",
+    "path": "/_music-company-logos/am.png"
+  },
+  {
+    "name": "Philips Records",
+    "path": "/_music-company-logos/philips.png"
+  },
+  {
+    "name": "Liberty Records",
+    "path": "/_music-company-logos/liberty-records.png"
+  },
+  {
+    "name": "Taylor Swift",
+    "path": "/_music-company-logos/taylor-swift.png"
+  },
+  {
+    "name": "Michael Jackson",
+    "path": "/_music-company-logos/mjj.png"
+  },
+  {
+    "name": "DDL",
+    "path": "/_music-company-logos/ddl.png"
+  },
+  {
+    "name": "Ray Bull",
+    "path": "/_music-company-logos/raybull.png"
+  }
+]

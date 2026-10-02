@@ -1,0 +1,59 @@
+{
+  "appId": "org.cassettestudio.editor",
+  "productName": "Cassette Studio",
+  "directories": {
+    "output": "dist-desktop",
+    "buildResources": "desktop"
+  },
+  "files": [
+    "desktop/main.mjs",
+    "desktop/preload.cjs",
+    "desktop/policy.mjs",
+    "desktop/icon.png",
+    "server.mjs",
+    "decal-catalog.mjs",
+    "catalog-match.mjs",
+    "google-fonts.mjs",
+    "studio-logos.json",
+    "index.html",
+    "style.css",
+    "app.js",
+    "package.json",
+    "desktop/spotify-session.mjs",
+    "music-importer.mjs",
+    "music-links.mjs",
+    "music-network.mjs"
+  ],
+  "asar": true,
+  "npmRebuild": false,
+  "win": {
+    "target": [
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
+      },
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "icon": "desktop/icon.ico",
+    "signExecutable": false
+  },
+  "portable": {
+    "artifactName": "Cassette-Studio-${version}-Portable.exe"
+  },
+  "nsis": {
+    "artifactName": "Cassette-Studio-${version}-Setup.exe",
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Cassette Studio"
+  }
+}

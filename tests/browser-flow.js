@@ -1,0 +1,44 @@
+async (page) => {
+ const errors=[]; page.on('pageerror',e=>errors.push(e.message));
+ await page.setViewportSize({width:1440,height:1000});
+ await page.getByRole('textbox',{name:'Исполнитель',exact:true}).fill('Тест кассеты');
+ if(!(await page.locator('#canvas').textContent()).includes('Тест кассеты'))throw Error('Text did not update');
+ await page.getByRole('button',{name:'＋ Добавить текст',exact:true}).click();
+ await page.locator('[data-prop="text"]').fill('НОВЫЙ СЛОЙ');
+ await page.locator('[data-prop="rotation"]').fill('15');
+ await page.getByRole('button',{name:'Коды',exact:true}).click();
+ await page.getByRole('button',{name:'＋ QR-код',exact:true}).click();
+ await page.locator('[data-prop="text"]').fill('https://example.com/cassette-test');
+ await page.getByRole('button',{name:'＋ Штрихкод EAN-13',exact:true}).click();
+ await page.locator('[data-prop="text"]').fill('5901234123457');
+ if(await page.locator('#warnings').textContent())throw Error('Renderer warnings: '+await page.locator('#warnings').textContent());
+ await page.getByRole('button',{name:'Макет',exact:true}).click();
+ await page.locator('[data-bind="layout.panels"]').selectOption('8');
+ if(!(await page.locator('#dims').textContent()).includes('428.7'))throw Error('8-panel size wrong');
+ await page.locator('[data-bind="layout.panels"]').selectOption('4');
+ await page.getByLabel('Двусторонняя печать',{exact:true}).check();
+ await page.getByRole('button',{name:'Экспорт / печать ↗',exact:true}).click();
+ const pdfEvent=page.waitForEvent('download');
+ await page.getByRole('button',{name:'Скачать PDF',exact:true}).click();
+ const pdf=await pdfEvent;await pdf.saveAs('output/playwright/jcard.pdf');
+ await page.getByRole('button',{name:'Закрыть',exact:true}).click();
+ await page.getByRole('button',{name:'Cassette Label',exact:true}).click();
+ await page.getByRole('button',{name:'Сторона B',exact:true}).click();
+ if(!(await page.locator('#canvas').textContent()).includes('London Life'))throw Error('Side B missing');
+ await page.getByRole('button',{name:'Экспорт / печать ↗',exact:true}).click();
+ const pngEvent=page.waitForEvent('download');
+ await page.locator('#exportSelection').selectOption('current');
+ await page.getByRole('button',{name:'PNG',exact:true}).click();
+ const png=await pngEvent;await png.saveAs('output/playwright/label.png');
+ await page.getByRole('button',{name:'Закрыть',exact:true}).click();
+ await page.getByRole('button',{name:'Сохранить',exact:true}).click();
+ await page.reload();
+ await page.getByRole('textbox',{name:'Исполнитель',exact:true}).waitFor();
+ if(await page.getByRole('textbox',{name:'Исполнитель',exact:true}).inputValue()!=='Тест кассеты')throw Error('Autosave failed');
+ await page.screenshot({path:'output/playwright/desktop.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});
+ await page.screenshot({path:'output/playwright/mobile.png',fullPage:true});
+ if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2))throw Error('Mobile overflow');
+ console.log(JSON.stringify({result:'PASS',errors}));
+}
+
