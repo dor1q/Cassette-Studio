@@ -3,8 +3,49 @@ import {REFERENCE_UNIT} from './reference-format.js';
 import {normalizePaint} from './color-paint.js';
 
 export function markReferenceGeometry(layer){
- if(layer&&(layer.referenceFlow||layer.referenceSpine||layer.source==='flapTracks'))layer.referenceManualGeometry=true;
+ if(layer&&(layer.referenceFlow||layer.referenceSpine||['flapTracks','flapProduction'].includes(layer.source)))layer.referenceManualGeometry=true;
  return layer;
+}
+
+// The short flap has an independent, horizontal production block. Other flap
+// shapes keep this text in the track block. Measurements use the public 600 dpi
+// layout: 8 px padding, a 32 px gap and a 750 px barcode reservation.
+export function referenceFlapProductionFrame(project,layer){
+ const layout=project.layout,padding=8*REFERENCE_UNIT,edge=6*REFERENCE_UNIT;
+ const w=Math.max(.1,layout.flap-2*(edge+padding));
+ const size=Math.max(.1,Number(layer.size)||1),stretch=(Number(layer.fontStretch)||100)/100;
+ const lines=String(project.data.production||'').split(/\r?\n/).reduce((count,line)=>count+Math.max(1,Math.ceil((line.length*size*.55+Math.max(0,line.length-1)*(layer.spacing||0))*stretch/w)),0);
+ const h=Math.max(size*(layer.lineHeight||1.5),lines*size*(layer.lineHeight||1.5));
+ const reserved=project.surfaces.outer.some(item=>item.type==='barcode'&&item.visible)?750*REFERENCE_UNIT:0;
+ // The source stacks fixed-height tracks and the natural-height credit block
+ // around the centre of the flap; the resulting text remains clipped by the card.
+ return {x:edge+padding,y:layout.height-reserved-16*REFERENCE_UNIT-h/2,w,h,rotation:0};
+}
+
+export function updateReferenceFlapProduction(project){
+ if(!project.layout.referenceTemplate)return null;
+ const flap=project.surfaces.outer.find(layer=>layer.source==='flapTracks'&&!layer.referenceBlockCopy);
+ if(!flap)return null;
+ const short=project.layout.flapShape==='short';flap.referenceFlapProductionSeparate=short;
+ let production=project.surfaces.outer.find(layer=>layer.source==='flapProduction'&&layer.referenceFlapProduction&&!layer.referenceBlockCopy);
+ if(!production&&!short)return null;
+ if(!production&&flap.referenceFlapProductionCreated)return null;
+ if(!production){
+  const keys=['font','fontWeight','fontStretch','bold','italic','uppercase','smallcaps','spacing','outline','outlineColor','shadow','shadowColor','opacity','color','referenceOwnColor','referenceHiddenByTextColor'];
+  const style=Object.fromEntries(keys.filter(key=>Object.hasOwn(flap,key)).map(key=>[key,flap[key]]));
+  production=makeLayer('text',{...style,source:'flapProduction',name:'Выходные данные на коротком клапане',referenceFlapProduction:true,size:flap.size*.85,lineHeight:1.5,align:'center',autoFit:false});
+  project.surfaces.outer.push(production);
+ }
+ flap.referenceFlapProductionCreated=true;
+ if(!production.referenceBlock&&!production.referenceManualGeometry&&!production.locked)Object.assign(production,referenceFlapProductionFrame(project,production));
+ const active=short&&!!flap.trackOptions?.showProduction&&!!String(project.data.production||'').trim();
+ const transparent=project.settings.referenceTransparentText&&!production.referenceOwnColor&&normalizePaint(production.color)==='transparent';
+ if(active){
+  if(transparent){if(production.visible||production.referenceFlapProductionHidden)production.referenceHiddenByTextColor=true;production.visible=false;delete production.referenceFlapProductionHidden}
+  else if(production.referenceFlapProductionHidden){production.visible=true;delete production.referenceFlapProductionHidden}
+ }
+ else if(production.visible){production.visible=false;production.referenceFlapProductionHidden=true}
+ return production;
 }
 
 export function updateReferenceFrames(project){
@@ -19,6 +60,7 @@ export function updateReferenceFrames(project){
  }
  const spine=project.surfaces.outer.find(l=>l.referenceSpine);
  if(spine&&!spine.referenceBlock&&!spine.referenceManualGeometry&&!spine.locked)Object.assign(spine,{x:layout.flap+layout.spine-2,y:4,w:layout.height-8,h:layout.spine-4,rotation:90});
+ updateReferenceFlapProduction(project);
 }
 
 function flowSource(layer,surface=layer.referenceFlowSurface||layer.flowSurface){
@@ -33,7 +75,7 @@ function validArchivedFlow(layer){
 
 function archivedTextLayer(layer,template=false){
  if(!layer||layer.type!=='text'||layer.source!=='referenceContents'||!template&&!validArchivedFlow(layer))return null;
- const styleKeys=['id','name','x','y','w','h','rotation','opacity','visible','locked','color','font','size','bold','fontWeight','fontStretch','italic','uppercase','smallcaps','align','lineHeight','spacing','outline','outlineColor','shadow','shadowColor','autoFit','text','hideArtist','hideAlbum','hideA','hideB','referenceOwnColor','referenceHiddenByTextColor','referenceManualGeometry','referenceBlock'];
+ const styleKeys=['id','name','x','y','w','h','rotation','opacity','visible','locked','color','font','size','bold','fontWeight','fontStretch','italic','uppercase','smallcaps','align','lineHeight','spacing','outline','outlineColor','shadow','shadowColor','autoFit','text','hideArtist','hideAlbum','hideA','hideB','referenceOwnColor','referenceHiddenByTextColor','referenceManualGeometry','referenceBlock','referenceSuspendedBlock','referenceFreePlaceToken'];
  const out=makeLayer('text',Object.fromEntries(styleKeys.filter(key=>Object.hasOwn(layer,key)).map(key=>[key,layer[key]])));
  out.id=/^[a-z0-9-]{1,100}$/i.test(out.id||'')?out.id:uid();
  out.name=String(out.name||'Содержимое').slice(0,200);out.text=String(out.text||'').slice(0,100000);out.font=String(out.font||'Arial').slice(0,200);
@@ -45,6 +87,8 @@ function archivedTextLayer(layer,template=false){
  for(const key of ['visible','locked','bold','italic','uppercase','smallcaps','autoFit','hideArtist','hideAlbum','hideA','hideB','referenceOwnColor','referenceHiddenByTextColor','referenceManualGeometry'])out[key]=!!out[key];
  out.align=['left','center','right'].includes(out.align)?out.align:'left';
  if(typeof out.referenceBlock==='string'&&/^[a-z0-9]+-[a-z0-9]+$/i.test(out.referenceBlock))out.referenceBlock=out.referenceBlock.slice(0,200);else delete out.referenceBlock;
+ if(!(typeof out.referenceSuspendedBlock==='string'&&out.referenceSuspendedBlock.length<=200&&/^[a-z0-9]+-[a-z0-9]+$/i.test(out.referenceSuspendedBlock)))delete out.referenceSuspendedBlock;
+ if(typeof out.referenceFreePlaceToken==='string'&&/^[a-z0-9-]{1,100}$/i.test(out.referenceFreePlaceToken))out.referenceFreePlaceToken=out.referenceFreePlaceToken.slice(0,100);else delete out.referenceFreePlaceToken;
  if(layer.trackOptions&&typeof layer.trackOptions==='object'&&!Array.isArray(layer.trackOptions)){
   out.trackOptions={};
   for(const key of ['numbers','artists','durations','bullets','inlineTracks','showSide','hideTracks','showProduction'])if(typeof layer.trackOptions[key]==='boolean')out.trackOptions[key]=layer.trackOptions[key];
@@ -72,7 +116,7 @@ export function referenceFlowLayers(project){
 }
 
 export function referenceFlowCopy(layer,surface){
- if(!layer.referenceFlow)return clone(layer);
+ if(!layer.referenceFlow){const copy=clone(layer);if(copy.referenceFlapProduction){delete copy.referenceFlapProduction;delete copy.referenceFlapProductionHidden}return copy}
  const source=flowSource(layer,surface);
  return {...clone(layer),referenceFlow:false,referenceFlowCopyIndex:layer.flowIndex,...(source?{referenceFlowCopySource:source}:{}),flowIndex:undefined};
 }
@@ -109,7 +153,7 @@ export function rebuildReferenceFlow(project,template){
   for(const panel of panelRects(project,surface).filter(r=>r.index>=(surface==='outer'?3:2)))for(let column=0;column<columns;column++){
    const width=(panel.w-2*padX-gap*(columns-1))/columns;
    const slot=flowSlot({surface,panel:panel.index,column}),matched=candidates.get(slot),old=matched||template,style=clone(old);activeSlots.add(slot);
-   if(!matched)for(const key of ['referenceBlock','referenceBlockCopy','referenceManualGeometry','referenceFlowCopyIndex','referenceFlowCopySource'])delete style[key];
+   if(!matched)for(const key of ['referenceBlock','referenceSuspendedBlock','referenceFreePlaceToken','referenceBlockCopy','referenceManualGeometry','referenceFlowCopyIndex','referenceFlowCopySource'])delete style[key];
    delete style.flowSurface;
    const height=(project.layout.height-2*padY)*(columns>1?(project.layout.columnHeight||100)/100:1);
    project.surfaces[surface].push(makeLayer('text',{

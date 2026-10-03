@@ -1,7 +1,7 @@
 import {normalizePaint} from './color-paint.js';
 import {makeLayer,resetSurfaces,dimensions,panelRects,parseTracks,clone,uid,clamp} from './model.js';
 import {CASSETTE_TEMPLATE} from './cassette-template.js';
-import {rebuildReferenceFlow} from './reference-flow.js';
+import {rebuildReferenceFlow,updateReferenceFlapProduction} from './reference-flow.js';
 import {applyReferenceBlocks} from './reference-freeplace.js';
 import {REFERENCE_UNIT,referenceFont,referenceLayout,referenceCenterX,referenceFlags,splitReferenceCaptions,referenceSectionColors,referenceSynced,referenceSurface,referencePlacement,decodedText} from './reference-format.js';
 
@@ -26,7 +26,7 @@ export function importReference(p,url){
  p.settings.referenceSeparator=['-','|',' ','•','·'][Number(q.get('sep'))]||'-';p.settings.referenceSectionColors=referenceSectionColors(q.get('fc'));p.settings.referenceTrackAlign={l:'left',r:'right'}[q.get('ta')]||'center';
  resetSurfaces(p);
  if(label)importLabel(p,q);else importJCard(p,q);
- importCaptions(p,q.get('cxt'),mode);importCodes(p,q,u,mode);applyReferenceBlocks(p,q,mode);
+ importCaptions(p,q.get('cxt'),mode);importCodes(p,q,u,mode);if(!label)updateReferenceFlapProduction(p);applyReferenceBlocks(p,q,mode);
  p.referenceView={mode,surface:label?(q.get('sd')==='B'?'labelB':'labelA'):'outer',both:label&&q.get('sd')==='AB'};
  if(p.settings.referenceTransparentText)for(const list of Object.values(p.surfaces))for(const l of list)if(l.type==='text'&&!l.referenceOwnColor&&!l.referenceAlbumOwnColor){l.referenceHiddenByTextColor=l.visible;l.visible=false;}
  return p;

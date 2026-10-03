@@ -10,7 +10,7 @@ export function importMusicData(project,album,target='both',{tracksOnly=false}={
   [project.data.A,project.data.B]=balance(tracks);
  }else project.data[target]=tracks;
  if(!tracksOnly&&!project.settings.lockDesign){
-  if(target==='both')resetSurfaces(project);
+  if(target==='both'){resetSurfaces(project);delete project.referenceFreePlace}
   else{const previous={...project.surfaces};resetSurfaces(project);const replacement=project.surfaces['label'+target];project.surfaces=previous;project.surfaces['label'+target]=replacement}
  }
  return tracks.length;

@@ -2,12 +2,16 @@ import {clone,uid,dimensions} from './model.js';
 import {referenceFont,referenceCenterX,REFERENCE_UNIT} from './reference-format.js';
 import {referenceFlowCopy} from './reference-flow.js';
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
-export function parseReferenceBlocks(raw){
- if(!raw||raw.startsWith('~'))return [];
- const seen=new Set();return String(raw).slice(0,30000).split('|').slice(0,80).map(part=>{
+const MAX_BUNDLE=30000,MAX_BLOCKS=80,validRef=ref=>typeof ref==='string'&&/^[a-z0-9]+-[a-z0-9]+$/i.test(ref)&&ref.length<=200;
+const validToken=token=>typeof token==='string'&&/^[a-z0-9-]{1,100}$/i.test(token);
+const projectLayers=project=>[...Object.values(project.surfaces||{}).flat(),...(Array.isArray(project.referenceFlowArchive)?project.referenceFlowArchive.slice(0,32):[])];
+const blockSurface=(entry,mode)=>mode==='label'?({A:'labelA',B:'labelB'}[entry.scope]):({default:'outer',sideB:'inner'}[entry.scope]);
+export function parseReferenceBlocks(raw,{includeSuspended=false}={}){
+ if(typeof raw!=='string'||!raw||raw.startsWith('~')&&!includeSuspended)return [];
+ const seen=new Set();return raw.slice(0,MAX_BUNDLE).split('|').filter(part=>part!=='~').slice(0,MAX_BLOCKS).map(part=>{
   const [tag,x,y,scale,rotation,w,hidden,locked,aspect,style]=part.split('_');
   const match=/^b([A-Za-z0-9]+-[A-Za-z0-9]+)(?:\*(\d+))?$/.exec(tag||'');
-  if(!match)return null;
+  if(!match||!validRef(match[1]))return null;
   const parsedCopy=Number(match[2]),copy=Number.isInteger(parsedCopy)&&parsedCopy>=2?parsedCopy:1,identity=match[1]+'*'+copy;
   if(seen.has(identity))return null;seen.add(identity);
   const number=(raw,fallback,min,max)=>Number.isFinite(parseFloat(raw))?clamp(parseFloat(raw),min,max):fallback;
@@ -29,16 +33,36 @@ export function referenceBlockStyle(bundle,pixelUnit){
  return out;
 }
 function matches(layer,key,project){
- const source={artist:'artist',album:'album',spineText:'spine',spineLogo:'referenceSpineLogo',logo:'referenceLogo',flapTracks:'flapTracks',flapProd:'production',stereo:'stereo',side:'side',production:'production',tracklist:'tracks'}[key];
+ const source={artist:'artist',album:'album',spineText:'spine',spineLogo:'referenceSpineLogo',logo:'referenceLogo',flapTracks:'flapTracks',flapProd:'flapProduction',stereo:'stereo',side:'side',production:'production',tracklist:'tracks'}[key];
  if(/^inside\d+$/.test(key))return layer.source==='referenceContents'&&Math.floor((layer.insideIndex??layer.flowIndex)/project.layout.columns)+1===Number(key.slice(6));
  return source&&layer.source===source;
 }
-export function applyReferenceBlocks(project,params,mode='jcard',{pending=false}={}){
- const entries=parseReferenceBlocks(params.get('bx')),previous=pending?project.referenceFreePlace:null,appliedKeys=new Set(previous?.appliedKeys||[]),baselines=new Map();let applied=previous?.applied||0;const unsupported=[];
- for(const entry of entries){const surface=mode==='label'?({A:'labelA',B:'labelB'}[entry.scope]):({default:'outer',sideB:'inner'}[entry.scope]);if(surface&&!baselines.has(surface+'|'+entry.ref))baselines.set(surface+'|'+entry.ref,project.surfaces[surface].filter(l=>!l.referenceBlockCopy&&matches(l,entry.key,project)).map(l=>clone(l)))}
+export function sanitizeReferenceFreePlace(project){
+ const state=project.referenceFreePlace;if(!state||typeof state!=='object'||Array.isArray(state)){delete project.referenceFreePlace;for(const layer of projectLayers(project)){delete layer.referenceSuspendedBlock;delete layer.referenceFreePlaceToken}return project}
+ const raw=typeof state.raw==='string'?state.raw.slice(0,MAX_BUNDLE):'',entries=parseReferenceBlocks(raw,{includeSuspended:true}),refs=new Set(entries.map(entry=>entry.ref)),identities=new Set(entries.map(entry=>entry.ref+'*'+entry.copy));
+ const appliedKeys=Array.isArray(state.appliedKeys)?[...new Set(state.appliedKeys.filter(key=>typeof key==='string'&&key.length<=220&&/^[a-z0-9]+-[a-z0-9]+\*\d+$/i.test(key)&&(!raw||identities.has(key))))].slice(0,MAX_BLOCKS):[];
+ project.referenceFreePlace={raw,mode:state.mode==='label'?'label':'jcard',token:validToken(state.token)?state.token:'',applied:appliedKeys.length,appliedKeys,unsupported:Array.isArray(state.unsupported)?[...new Set(state.unsupported.filter(validRef))].slice(0,MAX_BLOCKS):[],suspended:raw.startsWith('~')&&entries.length>0};
+ for(const layer of projectLayers(project))if(!project.referenceFreePlace.suspended||!project.referenceFreePlace.token||layer.referenceFreePlaceToken!==project.referenceFreePlace.token||!refs.has(layer.referenceSuspendedBlock)){delete layer.referenceSuspendedBlock;delete layer.referenceFreePlaceToken}
+ return project;
+}
+export function hasSuspendedReferenceBlocks(project){return !!(project.referenceFreePlace?.suspended&&parseReferenceBlocks(project.referenceFreePlace.raw,{includeSuspended:true}).length)}
+export function resumeReferenceFreePlace(project){
+ sanitizeReferenceFreePlace(project);const state=project.referenceFreePlace;
+ if(!hasSuspendedReferenceBlocks(project))return {applied:state?.applied||0,unsupported:state?.unsupported||[],resumed:false};
+ // A suspended bundle stores layout data; it is not permission to transform a later replacement image.
+ const params=new URLSearchParams({bx:state.raw.split('|').filter((part,index)=>index!==0||!part.startsWith('~')).join('|')});
+ const result=applyReferenceBlocks(project,params,state.mode,{pending:true,resuming:true});
+ for(const layer of projectLayers(project)){delete layer.referenceSuspendedBlock;delete layer.referenceFreePlaceToken}
+ return {...result,resumed:true};
+}
+export function applyReferenceBlocks(project,params,mode='jcard',{pending=false,resuming=false}={}){
+ const raw=String(params.get('bx')||'').slice(0,MAX_BUNDLE),storedEntries=parseReferenceBlocks(raw,{includeSuspended:true}),suspended=raw.startsWith('~'),previous=pending&&project.referenceFreePlace?.mode===mode&&(resuming||project.referenceFreePlace.raw===raw)?project.referenceFreePlace:null;
+ const entries=suspended?[]:storedEntries,appliedKeys=new Set(previous?.appliedKeys||[]),baselines=new Map(),token=previous?.token||uid();let applied=previous?.applied||0;const unsupported=[];
+ if(suspended)for(const entry of storedEntries){const surface=blockSurface(entry,mode);for(const layer of project.surfaces[surface]||[])if(!layer.referenceBlockCopy&&matches(layer,entry.key,project)){layer.referenceSuspendedBlock=entry.ref;layer.referenceFreePlaceToken=token}}
+ for(const entry of entries){const surface=blockSurface(entry,mode);if(surface&&!baselines.has(surface+'|'+entry.ref))baselines.set(surface+'|'+entry.ref,(project.surfaces[surface]||[]).filter(l=>!l.referenceBlockCopy&&matches(l,entry.key,project)&&(!resuming||l.referenceSuspendedBlock===entry.ref&&l.referenceFreePlaceToken===token)).map(l=>clone(l)))}
  for(const entry of entries){
   const identity=entry.ref+'*'+entry.copy;if(appliedKeys.has(identity))continue;
-  const surface=mode==='label'?({A:'labelA',B:'labelB'}[entry.scope]):({default:'outer',sideB:'inner'}[entry.scope]);
+  const surface=blockSurface(entry,mode);
   if(!surface){unsupported.push(entry.ref);continue}
   const layers=project.surfaces[surface],original=baselines.get(surface+'|'+entry.ref)||[];
   if(!original.length){unsupported.push(entry.ref);continue}
@@ -57,6 +81,6 @@ export function applyReferenceBlocks(project,params,mode='jcard',{pending=false}
   }
   if(entry.copy>1)layers.push(...targets);applied++;appliedKeys.add(identity);
  }
- project.referenceFreePlace={applied,unsupported,appliedKeys:[...appliedKeys],suspended:String(params.get('bx')||'').startsWith('~')};
+ project.referenceFreePlace={raw,mode,token,applied,unsupported,appliedKeys:[...appliedKeys],suspended};
  return {applied,unsupported};
 }

@@ -3,7 +3,7 @@ import {productionChoices,isProductionSheet} from './production-print.js';
 
 export function exportControlState(p,{mode='jcard',sheet='auto',selection='all'}={}){
  const production=isProductionSheet(sheet),sheet12=sheet==='12up'||sheet==='12up-trim',shell=mode==='label'&&['body','full'].includes(p.layout.printArea);
- return {production,sheet12,shell,fixedPaper:production||sheet12,paper:production?'template':sheet12?'letter':null,fixedBleed:production||shell||sheet==='12up-trim',bleed:shell||sheet==='12up-trim'?0:production?3.175:null,fixedOffset:production,dpi:production?(sheet==='chalkpit-jcard-8up'?300:600):null,copies:sheet12?(selection==='all'?6:12):null,quantityLabel:production?'Количество листов каждой стороны':'Количество комплектов'};
+ return {production,sheet12,shell,frontOnly:sheet==='chalkpit-jcard-8up',fixedPaper:production||sheet12,paper:production?'template':sheet12?'letter':null,fixedBleed:production||shell||sheet==='12up-trim',bleed:shell||sheet==='12up-trim'?0:production?3.175:null,fixedOffset:production,dpi:production?(sheet==='chalkpit-jcard-8up'?300:600):null,copies:sheet12?(selection==='all'?6:12):null,quantityLabel:production?'Количество листов каждой стороны':'Количество комплектов'};
 }
 export function exportDialogHtml(p,{mode='jcard',blank=false}={}){
  const options=productionChoices(p,mode),shell=mode==='label'&&['body','full'].includes(p.layout.printArea);
@@ -13,13 +13,17 @@ export function exportDialogHtml(p,{mode='jcard',blank=false}={}){
 }
 export function bindExportDialog(p,{mode='jcard',get=id=>document.getElementById(id)}={}){
  let lastSheet='auto',previous={};
+ const sides=get('exportSelection'),allLabel=sides.options?.[0]?.textContent;let previousSelection=sides.value;
  function sync({resetCopies=false}={}){
-  const sheet=get('exportSheet').value,state=exportControlState(p,{mode,sheet,selection:get('exportSelection').value});
+  const sheet=get('exportSheet').value;let state=exportControlState(p,{mode,sheet,selection:sides.value});
   if(sheet!==lastSheet){
-   if(lastSheet==='auto'||lastSheet==='2up')previous={paper:get('exportPaper').value,bleed:get('exportBleed').value,dpi:get('exportDpi').value};
-   if(sheet==='auto'||sheet==='2up')for(const [key,value] of Object.entries(previous))get({paper:'exportPaper',bleed:'exportBleed',dpi:'exportDpi'}[key]).value=value;
+   if(lastSheet==='auto'||lastSheet==='2up')previous={paper:get('exportPaper').value,bleed:get('exportBleed').value,dpi:get('exportDpi').value,offsetX:get('exportOffsetX').value,offsetY:get('exportOffsetY').value,guides:get('exportGuides').checked};
+   if(sheet==='auto'||sheet==='2up')for(const [key,value] of Object.entries(previous)){const field=get({paper:'exportPaper',bleed:'exportBleed',dpi:'exportDpi',offsetX:'exportOffsetX',offsetY:'exportOffsetY',guides:'exportGuides'}[key]);if(key==='guides')field.checked=value;else field.value=value}
+   if(state.frontOnly){previousSelection=sides.value;sides.value='all'}else if(lastSheet==='chalkpit-jcard-8up')sides.value=previousSelection;
    lastSheet=sheet;
   }
+  state=exportControlState(p,{mode,sheet,selection:sides.value});
+  sides.disabled=state.frontOnly;if(sides.options?.[0])sides.options[0].textContent=state.frontOnly?'Только лицевая':allLabel;
   get('exportPaper').disabled=state.fixedPaper;if(state.paper)get('exportPaper').value=state.paper;
   get('exportBleed').disabled=state.fixedBleed;if(state.bleed!==null)get('exportBleed').value=String(state.bleed);
   for(const key of ['exportOffsetX','exportOffsetY']){get(key).disabled=state.fixedOffset;if(state.fixedOffset)get(key).value='0'}

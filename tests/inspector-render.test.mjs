@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {esc,makeLayer,panelRects,createProject} from '../src/model.js';
 import {inspectorSection,bindInspectorSections} from '../src/inspector-sections.js';
+import {groupFor} from '../src/flow-editing.js';
+import {selectionFrame} from '../src/selection-edit.js';
 
 // Exercise the actual inspector renderer without a browser or music service.
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const renderer=app.slice(app.indexOf('function renderInspector(){'),app.indexOf('\nfunction add('));
 
-function render(layer,{mode='jcard'}={}){
+function render(layer,{mode='jcard',project=createProject(),joinColumns=true}={}){
  const controls=[];
  const inspector={
   innerHTML:'',addEventListener(){},
@@ -22,14 +24,14 @@ function render(layer,{mode='jcard'}={}){
    return controls;
   }
  };
- const p=createProject(),names=['current','$','prop','propCheck','propSelect','btn','fonts','p','esc','imageZoomControls','cropEditing','mode','panelRects','surface','albumStyleControls','syncImageZoom','inspectorSection','bindInspectorSections'];
+ const p=project,names=['current','$','prop','propCheck','propSelect','btn','fonts','p','esc','imageZoomControls','cropEditing','mode','panelRects','surface','albumStyleControls','syncImageZoom','inspectorSection','bindInspectorSections','editFrame','groupFor','joinColumns'];
  const prop=(label,key,type='number',attrs='')=>`<label>${esc(label)}<${type==='textarea'?'textarea':'input'} data-prop="${key}" ${attrs}></label>`;
  const propCheck=(label,key)=>`<label><input type="checkbox" data-prop="${key}">${esc(label)}</label>`;
  const propSelect=(label,key,options)=>`<label>${esc(label)}<select data-prop="${key}">${options.map(([value,text])=>`<option value="${esc(value)}">${esc(text)}</option>`).join('')}</select></label>`;
  const btn=(label,action)=>`<button data-action="${action}">${esc(label)}</button>`;
  const values=[()=>layer,()=>inspector,prop,propCheck,propSelect,btn,['Arial'],p,esc,
   ()=>'<input data-image-zoom type="range"><button data-action="reset-crop">Целиком</button>',false,mode,panelRects,'outer',
-  ()=>'<input data-album-style="font"><input data-album-style="size">',()=>{},inspectorSection,bindInspectorSections];
+  ()=>'<input data-album-style="font"><input data-album-style="size">',()=>{},inspectorSection,bindInspectorSections,()=>selectionFrame(p,layer,'outer',joinColumns),groupFor,joinColumns];
  new Function(...names,renderer+';renderInspector();')(...values);
  return {html:inspector.innerHTML,controls};
 }
