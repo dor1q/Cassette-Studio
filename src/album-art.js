@@ -1,4 +1,4 @@
-import {makeLayer} from './model.js';
+import {makeLayer,dimensions} from './model.js';
 import {referenceCoverIndex} from './cover-choices.js';
 
 export function referenceArtworkKey(url){
@@ -46,9 +46,9 @@ export function applyAlbumArt(project,src,target='both'){
   const layers=project.surfaces[surface];
   const existing=albumArtLayer(project,surface);
   if(existing){existing.src=src;existing.category='albumCover';delete existing.referenceAssetKey;delete existing.referenceCoverIndex;fitCoverImage(existing);continue}
-  const label=surface.startsWith('label');
+  const label=surface.startsWith('label'),size=dimensions(project,surface);
   const firstForeground=layers.findIndex(l=>l.category!=='background'&&l.referenceDecalLayer!=='background');
-  layers.splice(firstForeground<0?layers.length:firstForeground,0,fitCoverImage(makeLayer('image',{name:'Обложка альбома',category:'albumCover',src,x:label?0:project.layout.flap+project.layout.spine,y:0,w:label?project.layout.labelW:project.layout.front,h:label?project.layout.labelH:project.layout.height,opacity:label?.5:1})));
+  layers.splice(firstForeground<0?layers.length:firstForeground,0,fitCoverImage(makeLayer('image',{name:'Обложка альбома',category:'albumCover',src,x:label?0:project.layout.flap+project.layout.spine,y:0,w:label?size.w:project.layout.front,h:label?size.h:project.layout.height,opacity:label?.5:1})));
  }
  const upload=project.uploads.find(u=>u.category==='albumCover');
  if(upload){upload.src=src;delete upload.referenceAssetKey}else project.uploads.push({name:'Обложка альбома',category:'albumCover',src});

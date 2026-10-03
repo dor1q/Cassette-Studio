@@ -4,6 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {startStudioServer} from '../server.mjs';
 import {createSpotifySessionStore} from './spotify-session.mjs';
+import {createProjectFolderStore} from './project-folder.mjs';
 import {APP_ORIGIN,APP_URL,isAppUrl,externalUrl,proxyUrl,trustedInitiator} from './policy.mjs';
 
 const here=path.dirname(fileURLToPath(import.meta.url));
@@ -66,6 +67,7 @@ async function start(){
  let resolveReady;const editorReady=new Promise(resolve=>{resolveReady=resolve});
  ipcMain.on('studio-editor-ready',event=>{if(event.sender===window?.webContents&&event.senderFrame===window.webContents.mainFrame)resolveReady(true)});
  window=new BrowserWindow({width:1440,height:960,minWidth:1000,minHeight:700,show:false,title:'Cassette Studio',backgroundColor:'#f4f1e8',icon:path.join(here,'icon.png'),webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,webviewTag:false,preload:path.join(here,'preload.cjs')}});
+ installProjectFolder(createProjectFolderStore(configDir));
  window.webContents.setWindowOpenHandler(({url})=>{openExternal(url);return {action:'deny'}});
  window.webContents.on('will-navigate',(event,url)=>{if(!isAppUrl(url)){event.preventDefault();openExternal(url)}});
  window.webContents.on('will-redirect',(event,url)=>{if(!isAppUrl(url)){event.preventDefault();openExternal(url)}});
@@ -117,11 +119,27 @@ async function start(){
 }
 function openExternal(value){const url=externalUrl(value,studio.origin);if(url)shell.openExternal(url).catch(error=>dialog.showErrorBox('Не удалось открыть ссылку',error.message))}
 function action(name){window?.webContents.send('studio-menu',name)}
+function installProjectFolder(store){
+ const handle=(method,operation)=>ipcMain.handle('studio-project-folder-'+method,async(event,payload)=>{
+  if(event.sender!==window?.webContents||event.senderFrame!==window.webContents.mainFrame||!isAppUrl(event.senderFrame.url))return {ok:false,error:{code:'UNTRUSTED',message:'Доступ разрешён только редактору.'}};
+  try{return {ok:true,...await operation(payload)}}catch(error){return {ok:false,error:{code:error.code||'IO_ERROR',message:error.message||'Не удалось открыть библиотеку проектов.'}}}
+ });
+ handle('status',()=>store.status());
+ handle('choose',async()=>{
+  const choice=await dialog.showOpenDialog(window,{title:'Папка для проектов между компьютерами',buttonLabel:'Использовать эту папку',properties:['openDirectory','createDirectory']});
+  if(choice.canceled||!choice.filePaths.length)return {cancelled:true,...await store.status()};
+  return store.configure(choice.filePaths[0]);
+ });
+ handle('disconnect',()=>store.disconnect());
+ handle('list',()=>store.list());
+ handle('read',id=>store.read(id));
+ for(const method of ['save','rename','favorite','remove'])handle(method,payload=>store[method](payload));
+}
 function installMenu(){
  Menu.setApplicationMenu(Menu.buildFromTemplate([
-  {label:'Файл',submenu:[{label:'Открыть проект…',accelerator:'CmdOrCtrl+O',click:()=>action('open-project')},{label:'Сохранить проект…',accelerator:'CmdOrCtrl+S',click:()=>action('download-project')},{label:'Библиотека проектов',click:()=>action('library')},{type:'separator'},{label:'Экспорт и печать…',accelerator:'CmdOrCtrl+E',click:()=>action('export')},{type:'separator'},{label:'Выход',role:'quit'}]},
+  {label:'Файл',submenu:[{label:'Открыть проект…',accelerator:'CmdOrCtrl+O',click:()=>action('open-project')},{label:'Сохранить в библиотеку',accelerator:'CmdOrCtrl+S',click:()=>action('save-library')},{label:'Скачать JSON…',accelerator:'CmdOrCtrl+Shift+S',click:()=>action('download-project')},{label:'Библиотека проектов',click:()=>action('library')},{type:'separator'},{label:'Экспорт и печать…',accelerator:'CmdOrCtrl+E',click:()=>action('export')},{type:'separator'},{label:'Выход',role:'quit'}]},
   {label:'Правка',submenu:[{label:'Отменить изменение макета',accelerator:'CmdOrCtrl+Z',click:()=>action('undo')},{label:'Повторить изменение макета',accelerator:'CmdOrCtrl+Shift+Z',click:()=>action('redo')},{type:'separator'},{role:'cut',label:'Вырезать'},{role:'copy',label:'Копировать'},{role:'paste',label:'Вставить'},{role:'selectAll',label:'Выделить всё'}]},
   {label:'Вид',submenu:[{role:'resetZoom',label:'Исходный масштаб'},{role:'zoomIn',label:'Увеличить'},{role:'zoomOut',label:'Уменьшить'},{type:'separator'},{role:'togglefullscreen',label:'Полный экран'}]},
-  {label:'Помощь',submenu:[{label:'О приложении',click:()=>dialog.showMessageBox(window,{type:'info',title:'Cassette Studio',message:'Cassette Studio '+app.getVersion(),detail:'Редактор J-card и наклеек для аудиокассет.\nПроекты сохраняются на этом компьютере. Для каталогов и новых материалов нужен интернет.'})}]}
+  {label:'Помощь',submenu:[{label:'О приложении',click:()=>dialog.showMessageBox(window,{type:'info',title:'Cassette Studio',message:'Cassette Studio '+app.getVersion(),detail:'Редактор J-card и наклеек для аудиокассет.\nПроекты сохраняются на этом компьютере или в выбранной папке OneDrive, Dropbox и Яндекс Диска. Для каталогов и новых материалов нужен интернет.'})}]}
  ]));
 }

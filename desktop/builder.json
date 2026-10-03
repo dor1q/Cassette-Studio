@@ -6,9 +6,11 @@
     "buildResources": "desktop"
   },
   "files": [
+    "!**/*.map",
     "desktop/main.mjs",
     "desktop/preload.cjs",
     "desktop/policy.mjs",
+    "desktop/project-folder.mjs",
     "desktop/icon.png",
     "server.mjs",
     "decal-catalog.mjs",

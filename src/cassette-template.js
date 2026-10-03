@@ -1,5 +1,7 @@
+import {cassettePrintArea,cassetteShellOutline,cassetteShellCutouts,cassetteShellCutPath} from './cassette-shell.js';
+
 // Dimensions taken from the public Cassette Label SVG (251.16 × 118.43 units).
-export const CASSETTE_TEMPLATE={labelW:88.6,labelH:41.8,holeW:170.53*88.6/251.16,holeH:42.84*41.8/118.43,holeY:45.4*41.8/118.43,holeOffsetX:-.235*88.6/251.16,hole:true};
+export const CASSETTE_TEMPLATE={printArea:'label',labelW:88.6,labelH:41.8,holeW:170.53*88.6/251.16,holeH:42.84*41.8/118.43,holeY:45.4*41.8/118.43,holeOffsetX:-.235*88.6/251.16,hole:true};
 
 export function cassetteOutline(width,height,bleed=0){
  const cornerX=9.2*width/251.16,cornerY=9.2*height/118.43;
@@ -20,5 +22,15 @@ export function cassetteWindowPath(layout,bleed=0){
 }
 
 export function cassetteCutPath(layout,bleed=0){
+ const area=cassettePrintArea(layout.printArea);
+ if(area!=='label')return cassetteShellCutPath(area,bleed);
  return cassetteOutline(layout.labelW,layout.labelH,bleed)+cassetteWindowPath(layout,bleed);
+}
+
+export function cassetteSurfaceOutline(layout,bleed=0){
+ return cassettePrintArea(layout.printArea)==='label'?cassetteOutline(layout.labelW,layout.labelH,bleed):cassetteShellOutline(bleed);
+}
+export function cassetteCutouts(layout,bleed=0){
+ const area=cassettePrintArea(layout.printArea);
+ return area==='label'?cassetteWindowPath(layout,bleed):cassetteShellCutouts(area,bleed);
 }
