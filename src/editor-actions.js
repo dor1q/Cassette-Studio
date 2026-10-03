@@ -4,7 +4,8 @@ const lockedActions = new Set([
  'delete','visibility','forward','backward','center','align-left','align-right',
  'align-top','align-bottom','align-middle','rotate-left','rotate-right',
  'reset-crop','crop-edit','replace-image','google-fonts','font',
- 'reset-track-options','shuffle-texture','edit-rental','image-zoom-out','image-zoom-in'
+ 'reset-track-options','shuffle-texture','edit-rental','image-zoom-out','image-zoom-in',
+ 'album-google-fonts','album-font','reset-album-style'
 ]);
 
 export function canEditLayer(layer,property){

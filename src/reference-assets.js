@@ -64,9 +64,10 @@ export async function restoreReferenceDecals(project,params,request,getDimension
 export async function restoreReferenceFonts(project,request){
  const system=new Set(['Arial','Georgia','Courier New','Impact','Verdana','Trebuchet MS','Times New Roman','Tahoma']);
  const needed=new Map();
- for(const layer of Object.values(project.surfaces).flat())if(layer.type==='text'&&!system.has(layer.font)){
-  const weight=layer.fontWeight||(layer.bold?700:400),style=layer.italic?'italic':'normal',key=layer.font+'|'+weight+'|'+style;
-  if(!project.fonts.some(f=>f.name===layer.font&&(f.weight||400)===weight&&(f.style||'normal')===style))needed.set(key,{name:layer.font,weight,style});
+ for(const layer of Object.values(project.surfaces).flat())if(layer.type==='text')for(const text of [layer,...(layer.albumStyle?[{...layer,...layer.albumStyle}]:[])]){
+  if(!text.font||system.has(text.font))continue;
+  const weight=text.fontWeight||(text.bold?700:400),style=text.italic?'italic':'normal',key=text.font+'|'+weight+'|'+style;
+  if(!project.fonts.some(f=>f.name===text.font&&(f.weight||400)===weight&&(f.style||'normal')===style))needed.set(key,{name:text.font,weight,style});
  }
  if(!needed.size)return {restored:0,missing:[]};
  let catalog;try{catalog=await request('/api/fonts')}catch{return {restored:0,missing:[...new Set([...needed.values()].map(f=>f.name))]}}

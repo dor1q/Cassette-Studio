@@ -11,7 +11,7 @@ export function referencePosition(p,xPercent,yPercent,w,h,rotation=0,surface='ou
  return {x:cx-(w*Math.cos(a)-h*Math.sin(a))/2,y:cy-(w*Math.sin(a)+h*Math.cos(a))/2};
 }
 export function importReference(p,url){
- const u=new URL(url),q=u.searchParams,mode=referenceMode(url),label=mode==='label';for(const key of ['referenceCoverChoices','referenceBackgroundChoices','referenceCoverIndex','referenceCoverIndices','referenceRequestedCoverIndex','referenceMusicMetadata','referenceMusicMetadataSource','referenceArtworkSource'])delete p[key];
+ const u=new URL(url),q=u.searchParams,mode=referenceMode(url),label=mode==='label';for(const key of ['referenceCoverChoices','referenceBackgroundChoices','referenceCoverIndex','referenceCoverIndices','referenceRequestedCoverIndex','referenceMusicMetadata','referenceMusicMetadataSource','referenceArtworkSource','referenceFlowArchive','referenceFlowTemplate'])delete p[key];
  Object.assign(p.data,{artist:q.get('musicArtist')||'',album:q.get('musicAlbum')||'',note:'',stereo:q.get('musicDS')??'STEREO SURROUND',url:q.get('playlistUrl')||'',lyrics:q.get('musicLyrics')||'',production:label?(q.get('musicPL')??q.get('musicProd')??''):(q.get('musicProd')??q.get('musicPL')??'')});
  for(const side of ['A','B'])p.data[side]=q.has('music'+side)?parseTracks(q.get('music'+side).replace(/\|/g,'\n'),true):[];
  delete p.layout.panelWidths;delete p.layout.referenceTemplate;

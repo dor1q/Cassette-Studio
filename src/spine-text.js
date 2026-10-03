@@ -2,12 +2,20 @@ import {esc,clamp,boundText} from './model.js';
 import {svgPaint} from './color-paint.js';
 
 const compact=text=>String(text).replace(/\s/g,'');
+export function spineCaseText(value,layer,project){
+ const upper=text=>layer.uppercase?text.toUpperCase():text,album=project.data.album;
+ if(!layer.referenceSpine||!layer.albumStyle||layer.hideAlbum||!album)return upper(value);
+ const start=value.lastIndexOf(album);if(start<0)return upper(value);
+ const title=(layer.albumStyle.uppercase??layer.uppercase)?album.toUpperCase():album;
+ return upper(value.slice(0,start))+title+upper(value.slice(start+album.length));
+}
+
 export function spineTextRuns(line,lines,index,layer,project){
  const style=layer.albumStyle,album=project.data.album;
  if(!layer.referenceSpine||layer.hideAlbum||!album||!style)return [{text:line}];
  const source=boundText(project,layer,'outer');
- const normalized=compact(layer.uppercase?source.toUpperCase():source);
- const title=compact(layer.uppercase?album.toUpperCase():album);
+ const normalized=compact(spineCaseText(source,layer,project));
+ const title=compact((style.uppercase??layer.uppercase)?album.toUpperCase():album);
  const start=normalized.lastIndexOf(title);if(start<0)return [{text:line}];
  const end=start+title.length,runs=[];
  let offset=lines.slice(0,index).reduce((n,text)=>n+compact(text).length,0);

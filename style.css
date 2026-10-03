@@ -23,3 +23,5 @@
 .preview-dialog .three-d{height:clamp(160px,calc(72vh - 250px),380px);grid-template-rows:minmax(0,1fr);grid-template-columns:minmax(0,1fr)}
 
 .cover-gallery-grid{max-height:55vh;overflow:auto}.cover-gallery-grid button{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}.cover-gallery-grid img,.gallery-placeholder{width:100%;height:120px;object-fit:contain}.gallery-placeholder{display:grid;place-items:center;background:#8881}.cover-gallery-grid button>span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+
+#imageLayerSelect{max-width:210px;min-width:125px;width:auto;font-size:12px;padding:6px 8px}.image-tools #selectArtwork{font-weight:600}#canvas.editing-image [data-layer]{cursor:grab}

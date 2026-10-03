@@ -1,3 +1,4 @@
+import {referenceFlowLayers} from './reference-flow.js';
 const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
 const luminance=channels=>channels.map(n=>n/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4).reduce((sum,n,i)=>sum+n*[.2126,.7152,.0722][i],0);
 export function colorContrast(a,b){const x=luminance(rgb(a)),y=luminance(rgb(b));return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
@@ -31,7 +32,7 @@ export function applyAlbumColors(project,palette,{force=false}={}){
  const oldForeground=project.settings.fg.toLowerCase();
  const foreground=oldForeground==='rainbow'?'rainbow':palette.fg;
  Object.assign(project.settings,{bg:palette.bg,bgB:palette.bg,bgInside:palette.bg,fg:foreground,referenceTransparentBackground:false});
- for(const layer of Object.values(project.surfaces).flat()){
+ for(const layer of new Set([...Object.values(project.surfaces).flat(),...referenceFlowLayers(project)])){
   const inherited=String(layer.color).toLowerCase()===oldForeground;
   if(layer.type==='text'&&!layer.referenceOwnColor&&(layer.source||inherited))layer.color=foreground;if(layer.albumStyle&&!layer.referenceAlbumOwnColor&&String(layer.albumStyle.color).toLowerCase()===oldForeground)layer.albumStyle.color=foreground;
   if(['qr','barcode'].includes(layer.type)&&!layer.referenceOwnColor&&layer.referenceColorInherited!==false&&(inherited||layer.referenceColorInherited===true))layer.color=foreground;
