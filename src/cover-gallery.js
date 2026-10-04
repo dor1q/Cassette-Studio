@@ -2,9 +2,13 @@ import {makeLayer,dimensions,panelRects} from './model.js';
 import {albumArtLayer,fitCoverImage} from './album-art.js';
 import {loadReferenceImage} from './reference-image-source.js';
 import {coverChoices,audioBackgroundChoices} from './cover-choices.js';
+import {recordLabelMetadata} from '../music-labels.mjs';
+import {musicGalleryScope} from './music-gallery-scope.js';
 
 export function storeMusicGallery(project,album){
+ Object.assign(project.data,recordLabelMetadata(album.recordLabels,album.recordLabelSource));
  project.referenceCoverChoices=coverChoices(album);project.referenceBackgroundChoices=audioBackgroundChoices(album);
+ project.referenceBackgroundChoicesScope=musicGalleryScope({url:album.url,artist:album.artist,album:album.album,cover:album.cover});
  project.referenceCoverIndex=0;project.referenceCoverIndices={};
  delete project.referenceMusicMetadata;delete project.referenceMusicMetadataSource;
 }

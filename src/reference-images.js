@@ -1,7 +1,7 @@
-import {makeLayer,dimensions} from './model.js';
-import {REFERENCE_UNIT} from './reference-format.js';
+import {makeLayer} from './model.js';
 import {applyAlbumArt,applyReferenceArtwork,albumArtLayer,referenceArtworkKey} from './album-art.js';
 import {loadReferenceImage,referenceImageSource,referenceImageDimensions} from './reference-image-source.js';
+import {prepareRecordLabelLogo,applyRecordLabelLogo,recordLabelLogoFrame} from './record-label-logo.js';
 
 export async function restoreReferenceCover(project,params,request,mode='jcard',cached=[],getDimensions=referenceImageDimensions){
  const source=referenceImageSource(params.get('cp'));
@@ -20,16 +20,18 @@ export async function restoreReferenceCover(project,params,request,mode='jcard',
 
 export async function restoreReferenceLogo(project,params,request,mode='jcard',cached=[],getDimensions=referenceImageDimensions){
  if(params.get('cl')==='hidden')return {restored:0,missing:0};
+ if(!params.get('cl')){
+  const prepared=await prepareRecordLabelLogo(project.referenceMusicMetadata||{},request,{cached,getDimensions});
+  const result=applyRecordLabelLogo(project,prepared,{mode});
+  return {restored:result.updated.length?1:0,missing:prepared.asset?0:1,warnings:prepared.warnings};
+ }
  const source=referenceImageSource(params.get('cl')||'/_music_logo_defaults/lofi-stereo.png');
  if(!source)return {restored:0,missing:0};
  let data;try{data=await loadReferenceImage(source,request,getDimensions,cached)}catch{}
  const label=mode==='label',surfaces=label?['labelA','labelB']:['outer'];
  for(const surface of surfaces){
-  const W=dimensions(project,surface).w,H=dimensions(project,surface).h;
-  let frame;
-  if(label){const w=W*.12,h=data?w*data.h/data.w:w;frame={x:5*W/251.16,y:H*.55-h/2,w,h}}
-  else{const size=220*REFERENCE_UNIT*project.layout.spine/(300*REFERENCE_UNIT);frame={x:project.layout.flap+(project.layout.spine-size)/2,y:26*REFERENCE_UNIT,w:size,h:size,cropRotation:90}}
-  const layer=makeLayer('image',{category:'studio',source:label?'referenceLogo':'referenceSpineLogo',name:data?'Логотип из ссылки':'Логотип из ссылки — замените файл',src:data?.src||'',referenceAssetKey:source,fit:'meet',missingReference:!data,...frame}),layers=project.surfaces[surface],at=layers.findIndex(l=>l.referenceDecalLayer==='over'||['referenceText','referenceCode','spotifyCode'].includes(l.category));
+  const frame=recordLabelLogoFrame(project,surface,data);
+  const layer=makeLayer('image',{category:'studio',source:label?'referenceLogo':'referenceSpineLogo',name:data?'Логотип из ссылки':'Логотип из ссылки — замените файл',src:data?.src||'',referenceAssetKey:source,referenceLogoExplicit:true,fit:'meet',missingReference:!data,...frame}),layers=project.surfaces[surface],at=layers.findIndex(l=>l.referenceDecalLayer==='over'||['referenceText','referenceCode','spotifyCode'].includes(l.category));
   layers.splice(at<0?layers.length:at,0,layer);
  }
  return {restored:data?1:0,missing:data?0:1};

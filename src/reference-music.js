@@ -3,6 +3,8 @@ import {applyAlbumArt,applyReferenceArtwork,cachedReferenceArtwork,referenceArtw
 import {referenceImageDimensions} from './reference-image-source.js';
 import {selectCoverChoice,referenceCoverIndex,audioBackgroundChoices,coverChoices} from './cover-choices.js';
 import {loadReferenceImage} from './reference-image-source.js';
+import {recordLabelMetadata} from '../music-labels.mjs';
+import {musicGalleryScope} from './music-gallery-scope.js';
 
 export function referenceMusicUrl(params){
  const supplied=params.get('playlistUrl');
@@ -30,10 +32,13 @@ export async function restoreReferenceMusicMetadata(project,url,request,previous
  const normalized=coverChoices(imported);
  const album={cover:normalized[0].file_path||'',coverAlternatives:[...(imported.coverAlternatives||[])],url:imported.url||musicUrl,
   customPosters:normalized.slice(1).map(({index,...poster})=>poster),
+  ...recordLabelMetadata(imported.recordLabels,imported.recordLabelSource),
   tracks:Array.isArray(imported.tracks)?imported.tracks.map(track=>({title:track.title||track.trackName||'',thumbnail:track.thumbnail||'',thumbnailWidth:track.thumbnailWidth,thumbnailHeight:track.thumbnailHeight})):[]};
  const options={cp:url.searchParams.get('cp')||''},selection=selectCoverChoice(album,url.searchParams,options),backgroundChoices=audioBackgroundChoices(album,options);
  project.referenceMusicMetadataSource=musicUrl;project.referenceMusicMetadata=album;
+ Object.assign(project.data,recordLabelMetadata(album.recordLabels,album.recordLabelSource));
  project.referenceCoverChoices=selection.choices;project.referenceBackgroundChoices=backgroundChoices;
+ project.referenceBackgroundChoicesScope=musicGalleryScope({url:musicUrl});
  return {album,musicUrl,choices:selection.choices,backgroundChoices,cached:!!reusable};
 }
 

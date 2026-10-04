@@ -1,7 +1,7 @@
 import {loadGalleryChoice} from './cover-gallery.js';
 
-export async function coverGalleryPicker({project,choices,kind='cover',modal,request,esc,activeProject,onChoose}){
- const title=kind==='background'?'Изображения альбома для фона':'Обложки альбома';
+export async function coverGalleryPicker({project,choices,kind='cover',title:customTitle='',modal,request,esc,activeProject,onChoose}){
+ const title=customTitle||(kind==='background'?'Изображения альбома для фона':'Обложки альбома');
  if(!choices?.length){modal(title,'<p>Сначала импортируйте альбом или плейлист со ссылкой.</p>');return}
  modal(title,'<p class="hint">Изображение применяется к текущей стороне. При синхронизации A/B обе наклейки используют общий дизайн.</p><div class="row"><button id="coverPagePrevious">←</button><span id="coverPageLabel" role="status"></span><button id="coverPageNext">→</button></div><div id="coverGalleryGrid" class="tiles cover-gallery-grid"></div><p id="coverGalleryStatus" role="status"></p>');
  const host=document.getElementById('coverGalleryGrid'),status=document.getElementById('coverGalleryStatus'),label=document.getElementById('coverPageLabel'),previous=document.getElementById('coverPagePrevious'),next=document.getElementById('coverPageNext');

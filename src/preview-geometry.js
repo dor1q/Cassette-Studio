@@ -1,9 +1,20 @@
 import {dimensions,panelRects} from './model.js';
+import {CASSETTE_SHELL,CASSETTE_POINT,cassetteArtworkOffset,cassetteDimensions,cassettePrintArea} from './cassette-shell.js';
 
 export const MIN_PREVIEW_SCALE=10,MAX_PREVIEW_SCALE=140;
+// The front follows the print template; thickness is an approximate housing depth.
+export const CASSETTE_PREVIEW_DEPTH=12;
+
+export function previewCassetteArtwork(project){
+ const offset=cassettePrintArea(project.layout.printArea)==='label'?cassetteArtworkOffset('full'):{x:0,y:0},size=cassetteDimensions(project.layout);
+ return {...offset,...size};
+}
 
 export function previewGeometry(project,mode='jcard'){
- if(mode==='label')return {width:300,height:190,depth:56,initialScale:100,faces:null};
+ if(mode==='label'){
+  const width=300,shellWidth=CASSETTE_SHELL.width*CASSETTE_POINT;
+  return {width,height:width*CASSETTE_SHELL.height/CASSETTE_SHELL.width,depth:width*CASSETTE_PREVIEW_DEPTH/shellWidth,initialScale:100,faces:null};
+ }
  const front=panelRects(project,'outer').find(r=>r.index===2),back=panelRects(project,'inner').find(r=>r.index===2),spine=panelRects(project,'outer').find(r=>r.index===1);
  const width=300,height=width*project.layout.height/front.w,depth=width*spine.w/front.w;
  return {width,height,depth,initialScale:Math.min(65,340/height*100),faces:{

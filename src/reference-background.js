@@ -1,6 +1,8 @@
 import {makeLayer,dimensions,panelRects} from './model.js';
 import {embeddedReferenceImage,referenceImageSource,referenceImageDimensions,MAX_REFERENCE_IMAGE_LENGTH} from './reference-image-source.js';
 import {REFERENCE_UNIT} from './reference-format.js';
+import {referenceMusicUrl} from './reference-music.js';
+import {musicGalleryScope} from './music-gallery-scope.js';
 
 // Public URL values describe image placement, rather than a generated gradient.
 export const REFERENCE_BACKGROUND_PATTERNS=Object.freeze([
@@ -75,6 +77,24 @@ function resolveSource(entry,decoded,params,cached,backgroundChoices){
  }
  return null;
 }
+export function referenceBackgroundSourceKey(params,source){
+ if(!source)return '';
+ const scope=source.type==='providerIndex'?referenceBackgroundScope(params):'';
+ if(source.type==='providerIndex'&&!scope)return '';
+ return JSON.stringify([scope,source]);
+}
+export function referenceBackgroundScope(params){
+ return musicGalleryScope({url:referenceMusicUrl(params),id:params.get('id'),artist:params.get('musicArtist'),album:params.get('musicAlbum'),cover:params.get('cp')});
+}
+export function referenceBackgroundRetrySource(project,layer){
+ const source=layer.referenceBackgroundSource;
+ if(source?.type==='providerIndex'){
+  const exact=referenceImageSource(layer.referenceAssetKey);if(exact)return exact;
+  let scope='';try{scope=JSON.parse(layer.referenceBackgroundSourceKey||'')[0]}catch{}
+  return scope&&scope===project.referenceBackgroundChoicesScope?referenceImageSource(project.referenceBackgroundChoices?.[source.index]?.file_path):null;
+ }
+ return referenceImageSource(layer.referenceAssetKey);
+}
 export async function normalizeBackgroundImage(src){
  if(embeddedReferenceImage(src))return src;
  if(typeof src!=='string'||src.length>MAX_REFERENCE_IMAGE_LENGTH||!/^data:image\/avif;base64,[A-Za-z0-9+/]+={0,2}$/.test(src))throw Error('Неподдерживаемый формат фонового изображения');
@@ -127,17 +147,27 @@ function savedBackgroundFrame(region,image,entry,mode){
  const frame=rotateFrame({...raw,w,h,x:cx-w/2,y:cy-h/2,tileWidth:raw.imageTile?length(raw.tileWidth,w):w,tileHeight:raw.imageTile?length(raw.tileHeight,h):h},entry.rotation);
  return {...frame,x:bounded(frame.x,-2000,2000,0),y:bounded(frame.y,-2000,2000,0),rotation:bounded(frame.rotation,-2000,2000,0)};
 }
+export function referenceBackgroundRetryFrame(project,layer,image,surface){
+ const original=layer.referenceBackgroundRestoreFrame,entry=layer.referenceBackgroundEntry;
+ if(!original||!entry||!Object.entries(original).every(([key,value])=>Array.isArray(value)?Array.isArray(layer[key])&&value.length===layer[key].length&&value.every((item,index)=>item===layer[key][index]):layer[key]===value))return null;
+ const mode=surface.startsWith('label')?'label':'jcard',region=backgroundRegion(project,surface,mode,entry.panels);
+ return {...savedBackgroundFrame(region,image,entry,mode),panelTargets:region.targets};
+}
+export const referenceBackgroundFrameSnapshot=layer=>Object.fromEntries(['x','y','w','h','rotation','tileWidth','tileHeight','fit','imageTile','panelTargets'].map(key=>[key,Array.isArray(layer[key])?[...layer[key]]:layer[key]]));
 export async function restoreReferenceBackgrounds(project,params,request,mode='jcard',cached=[],getDimensions=referenceImageDimensions,normalize=normalizeBackgroundImage){
  const surfaces=mode==='label'?['labelA','labelB']:['outer','inner'],decoded=decodeReferenceBackground(params,mode==='label'?2:project.layout.panels*2),entries=[decoded.main,...decoded.extras],result={restored:0,missing:0};
+ if(!project.referenceBackgroundChoicesScope)project.referenceBackgroundChoicesScope=referenceBackgroundScope(params);
  for(const surface of surfaces)project.surfaces[surface]=project.surfaces[surface].filter(l=>!l.referenceBackground);
  for(const [index,entry]of entries.entries()){
   if(!entry.source)continue;
   const regions=surfaces.map(surface=>({surface,region:backgroundRegion(project,surface,mode,entry.panels)}));
-  const source=resolveSource(entry,decoded,params,Object.values(project.surfaces).flat(),project.referenceBackgroundChoices);let data;
-  if(regions.some(v=>!v.region.hidden))try{data=await loadBackground(source,request,cached,getDimensions,normalize);result.restored++}catch{result.missing++}
+  const source=resolveSource(entry,decoded,params,Object.values(project.surfaces).flat(),project.referenceBackgroundChoices),sourceKey=referenceBackgroundSourceKey(params,entry.source);
+  const replacement=!source&&entry.source.type==='providerIndex'&&cached.find(layer=>sourceKey&&layer.referenceBackgroundSourceKey===sourceKey&&embeddedReferenceImage(layer.src));let data;
+  if(regions.some(v=>!v.region.hidden))try{data=await loadBackground(replacement?.src||source,request,cached,getDimensions,normalize);if(replacement)data.key=replacement.referenceAssetKey||'';result.restored++}catch{result.missing++}
   for(const {surface,region}of regions){
    const image=data||{w:1,h:1},frame=savedBackgroundFrame(region,image,entry,mode),unit=mode==='label'?project.layout.labelW/251.16:REFERENCE_UNIT;
-   const layer=makeLayer('image',{...frame,category:'background',source:'referenceBackground',referenceBackground:true,referenceBackgroundIndex:index,name:data?'Фон из ссылки'+(index?' · '+(index+1):''):'Фон из ссылки — замените файл',src:data?.src||'',referenceAssetKey:data?.key||referenceImageSource(source)||'',missingReference:!data&&!region.hidden,opacity:entry.opacity/100,blendMode:entry.blendMode,blur:bounded(entry.blur*unit,0,20,0),visible:!region.hidden,panelTargets:region.targets});
+   const layer=makeLayer('image',{...frame,category:'background',source:'referenceBackground',referenceBackground:true,referenceBackgroundIndex:index,referenceBackgroundSource:entry.source,referenceBackgroundSourceKey:sourceKey,referenceBackgroundEntry:entry,name:data?'Фон из ссылки'+(index?' · '+(index+1):''):'Фон из ссылки — замените файл',src:data?.src||'',referenceAssetKey:data?.key||referenceImageSource(source)||'',missingReference:!data&&!region.hidden,opacity:entry.opacity/100,blendMode:entry.blendMode,blur:bounded(entry.blur*unit,0,20,0),visible:!region.hidden,panelTargets:region.targets});
+   layer.referenceBackgroundRestoreFrame=referenceBackgroundFrameSnapshot(layer);
    const list=project.surfaces[surface],at=list.findIndex(l=>!l.referenceBackground);list.splice(at<0?list.length:at,0,layer);
   }
  }

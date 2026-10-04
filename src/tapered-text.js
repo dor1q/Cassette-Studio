@@ -1,5 +1,5 @@
-export function taperedInsets(layer,size,index){
- const y=(index+.5)*size*layer.lineHeight,height=layer.h;
+export function taperedInsets(layer,size,index,y=(index+.5)*size*layer.lineHeight){
+ const height=layer.h;
  return {left:Math.min(layer.w*.9,layer.w*Math.max(0,1-y/(height*.2))),right:layer.trackOptions?.showProduction?0:Math.min(layer.w*.9,layer.w*Math.max(0,(y-height*.85)/(height*.15)))};
 }
 

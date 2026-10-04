@@ -1,5 +1,25 @@
 import {esc,clamp,boundText} from './model.js';
 import {svgPaint} from './color-paint.js';
+import {resolvedRunStyle,runAdvance} from './text-layout.js';
+
+export function spineAlbumSpan(value,layer,project){
+ const album=project?.data.album;
+ if(!layer.referenceSpine||layer.hideAlbum||!album||!layer.albumStyle)return null;
+ const start=String(value).lastIndexOf(album);
+ return start<0?null:{start,end:start+album.length,style:layer.albumStyle};
+}
+
+export function renderStyledRuns(runs,layer,size,measureWidth,{backgroundColor='#ffffff',shadowId=''}={}){
+ return runs.map(run=>{
+  if(!run.style){
+   const attributes=[run.bold?'font-weight="bold"':'',run.italic?'font-style="italic"':''].filter(Boolean).join(' ');
+   return attributes?`<tspan ${attributes}>${esc(run.text)}</tspan>`:esc(run.text);
+  }
+  const style=resolvedRunStyle(run,layer,size),stretch=(style.fontStretch||100)/(layer.fontStretch||100);
+  const width=runAdvance(run.text,style,style.size,measureWidth);
+  return `<tspan font-family="${esc(style.font)}" font-size="${style.size}" font-weight="${style.fontWeight}" font-style="${style.italic?'italic':'normal'}" font-variant="${style.smallcaps?'small-caps':'normal'}" letter-spacing="${style.spacing||0}" stroke="${esc(style.outlineColor)}" stroke-width="${style.outline||0}" fill="${svgPaint(style.color,'',{backgroundColor}).fill}"${style.shadow&&shadowId?` filter="url(#${shadowId})"`:''}${width>0&&stretch!==1?` textLength="${width*stretch}" lengthAdjust="spacingAndGlyphs"`:''}>${esc(run.text)}</tspan>`;
+ }).join('');
+}
 
 const compact=text=>String(text).replace(/\s/g,'');
 export function spineCaseText(value,layer,project){

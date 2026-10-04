@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {clone,createProject,esc,importReference} from '../src/model.js';
 import {hasSuspendedReferenceBlocks,resumeReferenceFreePlace} from '../src/reference-freeplace.js';
 import {importMusicData} from '../src/music-import.js';
+import {missingReferenceImages} from '../src/reference-image-retry.js';
 
 // Execute the real application handler and panel renderer with only its browser boundaries replaced.
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
@@ -16,8 +17,8 @@ function suspended(mode='jcard'){
 }
 function harness(initial,{restoreFonts=async()=>({restored:0,missing:[]}),loadFonts=async()=>{}}={}){
  const calls={restore:[],load:[],history:[],saved:[],full:[],toasts:[],storage:[]},panel={innerHTML:''};
- const names=['initial','clone','hasSuspendedReferenceBlocks','resumeReferenceFreePlace','restoreFontsBoundary','loadFontsBoundary','calls','panel','esc'];
- const values=[initial,clone,hasSuspendedReferenceBlocks,resumeReferenceFreePlace,restoreFonts,loadFonts,calls,panel,esc];
+ const names=['initial','clone','hasSuspendedReferenceBlocks','resumeReferenceFreePlace','restoreFontsBoundary','loadFontsBoundary','calls','panel','esc','missingReferenceImages'];
+ const values=[initial,clone,hasSuspendedReferenceBlocks,resumeReferenceFreePlace,restoreFonts,loadFonts,calls,panel,esc,missingReferenceImages];
  return new Function(...names,`
   let p=initial,mode='jcard',surface='outer',bothView=true,selected='old-selection',tab='layers',projectRevision=0;
   const request=()=>{throw Error('Unexpected service request')},localStorage={setItem:(key,value)=>calls.storage.push([key,value])};

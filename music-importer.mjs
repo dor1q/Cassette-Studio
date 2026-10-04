@@ -1,5 +1,6 @@
 import {resolveMusicLink, parseMusicLink} from './music-links.mjs';
 import {serviceJson, MusicServiceError} from './music-network.mjs';
+import {recordLabelMetadata} from './music-labels.mjs';
 
 const names = values => (values || []).map(a => a.name || a.artist?.name || '').filter(Boolean).join(', ');
 const seconds = value => Math.max(0, Math.floor(Number(value) / 1000) || 0);
@@ -56,7 +57,7 @@ export function parseSpotifyEmbed(html, link) {
   if (source.length !== tracks.length) warnings.push('Эпизоды подкастов пропущены.');
   if (tracks.some(t => !t.seconds)) warnings.push('Для некоторых треков сервис не указал длительность.');
   const images = [...(entity.visualIdentity?.image || []), ...(entity.coverArt?.sources || [])];
-  return {album: entity.title || entity.name || '', artist: names(entity.artists) || entity.subtitle || '', cover: largestImage(images), coverAlternatives: images.map(i => i.url).filter(Boolean), url: link.url, note: entity.releaseDate?.isoString?.slice(0, 4) || '', tracks: limited(tracks), warnings, importSource: 'Spotify Embed'};
+  return {album: entity.title || entity.name || '', artist: names(entity.artists) || entity.subtitle || '', cover: largestImage(images), coverAlternatives: images.map(i => i.url).filter(Boolean), url: link.url, note: entity.releaseDate?.isoString?.slice(0, 4) || '', ...recordLabelMetadata(link.type === 'album' ? entity.label || entity.recordLabel : '', 'Spotify Embed'), tracks: limited(tracks), warnings, importSource: 'Spotify Embed'};
 }
 
 export function isoDuration(value) {
@@ -145,7 +146,7 @@ export function createMusicImporter({request, spotifyToken, youtubeKey = () => '
     if (!tracks.length) throw Error('Spotify не вернул доступных музыкальных треков');
     const images = a.images || a.album?.images || [];
     const cover = largestImage(images), coverAlternatives = images.map(i => i.url).filter(Boolean);
-    return {album: a.name || '', artist: names(a.artists) || a.owner?.display_name || '', cover, coverAlternatives, url: a.external_urls?.spotify || link.url, note: a.label || '', tracks, customPosters: trackCoverPosters(tracks, {exclude: [cover, ...coverAlternatives], type: 'spotify-thumb'}), warnings: omitted ? [`Пропущено недоступных записей или подкастов: ${omitted}.`] : [], importSource: 'Spotify API'};
+    return {album: a.name || '', artist: names(a.artists) || a.owner?.display_name || '', cover, coverAlternatives, url: a.external_urls?.spotify || link.url, note: a.label || '', ...recordLabelMetadata(link.type === 'album' ? a.label : link.type === 'track' ? a.album?.label : '', 'Spotify API'), tracks, customPosters: trackCoverPosters(tracks, {exclude: [cover, ...coverAlternatives], type: 'spotify-thumb'}), warnings: omitted ? [`Пропущено недоступных записей или подкастов: ${omitted}.`] : [], importSource: 'Spotify API'};
   }
 
   async function spotify(link) {
@@ -203,7 +204,7 @@ export function createMusicImporter({request, spotifyToken, youtubeKey = () => '
     if (link.type !== 'track' && a.trackCount > list.length) warnings.push(`Apple Music отдал ${list.length} из ${a.trackCount} треков: часть записей недоступна в этом регионе или превышен лимит каталога.`);
     const cover = a.artworkUrl100?.replace(/100x100bb/, '1200x1200bb') || '', coverAlternatives = [a.artworkUrl100?.replace(/100x100bb/, '600x600bb'), a.artworkUrl100].filter(Boolean);
     const tracks = limited(list.map(t => {const thumbnail = appleArtwork(t.artworkUrl100, 600);return {title: t.trackName, artist: t.artistName || '', seconds: seconds(t.trackTimeMillis), ...(thumbnail ? {thumbnail, cover: thumbnail} : {})}}));
-    return {album: link.type === 'track' ? list[0].trackName : a.collectionName, artist: a.artistName || '', url: link.type === 'track' ? list[0].trackViewUrl || link.url : a.collectionViewUrl || link.url, note: a.copyright || a.releaseDate?.slice(0, 4) || '', cover, coverAlternatives, tracks, customPosters: trackCoverPosters(tracks, {exclude: [cover, ...coverAlternatives], type: 'apple-thumb'}), warnings, importSource: 'Apple Music'};
+    return {album: link.type === 'track' ? list[0].trackName : a.collectionName, artist: a.artistName || '', url: link.type === 'track' ? list[0].trackViewUrl || link.url : a.collectionViewUrl || link.url, note: a.copyright || a.releaseDate?.slice(0, 4) || '', ...recordLabelMetadata(a.recordLabel, 'Apple Music'), cover, coverAlternatives, tracks, customPosters: trackCoverPosters(tracks, {exclude: [cover, ...coverAlternatives], type: 'apple-thumb'}), warnings, importSource: 'Apple Music'};
   }
 
   async function deezer(link) {
@@ -232,7 +233,7 @@ export function createMusicImporter({request, spotifyToken, youtubeKey = () => '
     const tracks = raw.filter(t => t.title).map(t => ({title: t.title, artist: t.artist?.name || '', seconds: Math.max(0, Number(t.duration) || 0), ...trackArtworkFields(deezerImages(t.album).find(artworkUrl))}));
     const warnings = a.nb_tracks > raw.length ? [`Deezer отдал ${raw.length} из ${a.nb_tracks} записей; часть недоступна.`] : [];
     const mainImages = deezerImages(link.type === 'track' ? a.album : a), cover = mainImages[0] || '', coverAlternatives = mainImages.slice(1);
-    return {album: a.title, artist: a.artist?.name || a.creator?.name || '', cover, coverAlternatives, url: a.link || link.url, note: [a.release_date, a.label].filter(Boolean).join(' · '), tracks, customPosters: trackCoverPosters(tracks, {exclude: [cover, ...coverAlternatives], type: 'deezer-thumb'}), warnings, importSource: 'Deezer'};
+    return {album: a.title, artist: a.artist?.name || a.creator?.name || '', cover, coverAlternatives, url: a.link || link.url, note: [a.release_date, a.label].filter(Boolean).join(' · '), ...recordLabelMetadata(link.type === 'album' ? a.label : link.type === 'track' ? a.album?.label : '', 'Deezer'), tracks, customPosters: trackCoverPosters(tracks, {exclude: [cover, ...coverAlternatives], type: 'deezer-thumb'}), warnings, importSource: 'Deezer'};
   }
 
   async function youtube(link) {

@@ -2,6 +2,8 @@ import {decalCatalog,fetchDecal} from './decal-catalog.mjs';
 import {fontCatalog,fetchGoogleFont} from './google-fonts.mjs';
 import {createServiceRequest,serviceJson} from './music-network.mjs';
 import {createMusicImporter} from './music-importer.mjs';
+import {recordLabelMetadata} from './music-labels.mjs';
+import {createGameArtwork,GAME_ARTWORK_SETTINGS} from './game-artwork.mjs';
 import http from 'node:http';
 import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
 import path from 'node:path';
@@ -12,12 +14,13 @@ export async function startStudioServer(options={}){
 const configDir=options.configDir||root,config={};
 await mkdir(configDir,{recursive:true});
 try{for(const line of (await readFile(path.join(configDir,'.env'),'utf8')).split(/\r?\n/)){const m=line.match(/^([A-Z_]+)\s*=\s*(.*)$/);if(m)config[m[1]]=m[2].replace(/^['"]|['"]$/g,'')}}catch{}
-for(const key of ['SPOTIFY_CLIENT_ID','YOUTUBE_API_KEY'])if(options.useEnvironment!==false&&process.env[key])config[key]=process.env[key];
+for(const key of ['SPOTIFY_CLIENT_ID','YOUTUBE_API_KEY',...Object.keys(GAME_ARTWORK_SETTINGS)])if(options.useEnvironment!==false&&process.env[key])config[key]=process.env[key];
 let port=Number(options.port??process.env.PORT??8769),origin=`http://127.0.0.1:${port}`,redirect=origin+'/api/spotify/callback';
 const allowedOrigins=()=>[origin,`http://localhost:${port}`,...(options.allowedOrigins||[])];
 const cache=new Map();let mbLast=0,mbQueue=Promise.resolve();let spotifyToken='',spotifyRefresh='',spotifyExpires=0;const oauthStates=new Map();
 const settingsToken=crypto.randomBytes(32).toString('hex');
 const request=createServiceRequest({fetchImpl:options.fetchImpl});
+const gameArtwork=createGameArtwork({fetchImpl:options.fetchImpl,getConfig:()=>config});
 let refreshing;
 try{const saved=await options.spotifySession?.load();if(saved?.clientId===config.SPOTIFY_CLIENT_ID&&typeof saved.refreshToken==='string')spotifyRefresh=saved.refreshToken}catch{}
 const rememberSpotify=async()=>{try{await options.spotifySession?.save({clientId:config.SPOTIFY_CLIENT_ID,refreshToken:spotifyRefresh})}catch{}};
@@ -26,13 +29,13 @@ async function saveSettings(req){
 if(req.headers['x-settings-token']!==settingsToken||!req.headers.origin||!req.headers['content-type']?.startsWith('application/json'))throw Error('Откройте настройки заново');
 let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>4096)throw Error('Слишком большой запрос')}
 const input=JSON.parse(raw),changes={};
-for(const [key,pattern] of [['SPOTIFY_CLIENT_ID',/^[a-f0-9]{32}$/i],['YOUTUBE_API_KEY',/^[A-Za-z0-9_-]{30,100}$/]]){if(Object.hasOwn(input,key)){if(typeof input[key]!=='string')throw Error('Некорректное значение');const value=input[key].trim();if(value&&!pattern.test(value))throw Error('Проверьте формат '+key);changes[key]=value}}
+for(const [key,pattern] of [['SPOTIFY_CLIENT_ID',/^[a-f0-9]{32}$/i],['YOUTUBE_API_KEY',/^[A-Za-z0-9_-]{30,100}$/],...Object.entries(GAME_ARTWORK_SETTINGS)]){if(Object.hasOwn(input,key)){if(typeof input[key]!=='string')throw Error('Некорректное значение');const value=input[key].trim();if(value&&!pattern.test(value))throw Error('Проверьте формат '+key);changes[key]=value}}
 let old='';try{old=await readFile(path.join(configDir,'.env'),'utf8')}catch(e){if(e.code!=='ENOENT')throw e}
 const lines=old.split(/\r?\n/).filter(line=>!Object.keys(changes).some(key=>new RegExp('^'+key+'\\s*=').test(line)));
 for(const [key,value] of Object.entries(changes))lines.push(key+'='+value);
 const tmp=path.join(configDir,'.env.tmp');await writeFile(tmp,lines.filter(Boolean).join('\n')+'\n',{mode:0o600});await rename(tmp,path.join(configDir,'.env'));
 if(Object.hasOwn(changes,'SPOTIFY_CLIENT_ID')&&changes.SPOTIFY_CLIENT_ID!==config.SPOTIFY_CLIENT_ID){spotifyToken='';spotifyRefresh='';spotifyExpires=0;oauthStates.clear();music.clearCache();try{await options.spotifySession?.clear()}catch{}}
-Object.assign(config,changes);music.clearCache();
+Object.assign(config,changes);music.clearCache();if(Object.keys(changes).some(key=>Object.hasOwn(GAME_ARTWORK_SETTINGS,key)))gameArtwork.clearCache();
 }
 const send=(res,status,obj)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(obj))};
 const json=(url,options)=>serviceJson(request,url,options);
@@ -46,7 +49,7 @@ async function search(provider,q){
  else{const r=await json('https://itunes.apple.com/search?entity=album&country=US&limit=20&term='+encodeURIComponent(q));data=(r.results||[]).map(x=>({provider:'apple',id:String(x.collectionId),album:x.collectionName,artist:x.artistName,year:x.releaseDate?.slice(0,4),cover:x.artworkUrl100||''}))}
  if(cache.size>100)cache.clear();cache.set(key,{data,expires:Date.now()+300000});return data;
 }
-async function album(provider,id){if(provider==='musicbrainz'){if(!/^[a-f0-9-]{36}$/i.test(id))throw Error('Некорректный MusicBrainz ID');const r=await mb(`https://musicbrainz.org/ws/2/release/${id}?fmt=json&inc=recordings+artist-credits+labels`);return {album:r.title,artist:artist(r['artist-credit']),url:'https://musicbrainz.org/release/'+id,note:[r.date,...(r['label-info']||[]).map(l=>l.label?.name)].filter(value=>value&&value!=='[no label]').join(' · '),cover:r['cover-art-archive']?.front?'https://coverartarchive.org/release/'+id+'/front-500':'',tracks:(r.media||[]).flatMap(m=>m.tracks||[]).map(t=>({title:t.title||t.recording?.title,artist:artist(t['artist-credit']||r['artist-credit']),seconds:Math.round((t.length||t.recording?.length||0)/1000)}))}}if(!/^\d+$/.test(id))throw Error('Некорректный ID альбома');if(provider==='deezer')return music.importLink('https://www.deezer.com/album/'+id);if(provider!=='apple')throw Error('Выберите музыкальный каталог');return music.apple({provider:'apple',type:'album',id,country:'US',url:'https://music.apple.com/us/album/'+id})}
+async function album(provider,id){if(provider==='musicbrainz'){if(!/^[a-f0-9-]{36}$/i.test(id))throw Error('Некорректный MusicBrainz ID');const r=await mb(`https://musicbrainz.org/ws/2/release/${id}?fmt=json&inc=recordings+artist-credits+labels`);return {album:r.title,artist:artist(r['artist-credit']),url:'https://musicbrainz.org/release/'+id,note:[r.date,...(r['label-info']||[]).map(l=>l.label?.name)].filter(value=>value&&value!=='[no label]').join(' · '),...recordLabelMetadata((r['label-info']||[]).map(l=>l.label?.name),'MusicBrainz'),cover:r['cover-art-archive']?.front?'https://coverartarchive.org/release/'+id+'/front-500':'',tracks:(r.media||[]).flatMap(m=>m.tracks||[]).map(t=>({title:t.title||t.recording?.title,artist:artist(t['artist-credit']||r['artist-credit']),seconds:Math.round((t.length||t.recording?.length||0)/1000)}))}}if(!/^\d+$/.test(id))throw Error('Некорректный ID альбома');if(provider==='deezer')return music.importLink('https://www.deezer.com/album/'+id);if(provider!=='apple')throw Error('Выберите музыкальный каталог');return music.apple({provider:'apple',type:'album',id,country:'US',url:'https://music.apple.com/us/album/'+id})}
 async function token(force=false){
  if(!force&&spotifyToken&&spotifyExpires>Date.now()+30000)return spotifyToken;
  if(!spotifyRefresh)throw Error('Подключите Spotify в «Подключениях» для прямого импорта.');
@@ -75,10 +78,12 @@ const server=http.createServer(async(req,res)=>{try{if(req.headers.host!==`127.0
 if(req.method==='POST'&&u.pathname==='/api/settings'){await saveSettings(req);send(res,200,{ok:true});return}
 if(req.method!=='GET'){send(res,405,{error:'Method not allowed'});return}
 if(u.pathname==='/api/decals'){send(res,200,await decalCatalog());return}
-if(u.pathname==='/api/decal'){send(res,200,await fetchDecal(u.searchParams.get('category'),u.searchParams.get('id')));return}
+if(u.pathname==='/api/decal'){send(res,200,await fetchDecal(u.searchParams.get('category'),u.searchParams.get('id'),u.searchParams.get('parts')));return}
 if(u.pathname==='/api/fonts'){send(res,200,await fontCatalog());return}
 if(u.pathname==='/api/font'){send(res,200,await fetchGoogleFont(u.searchParams.get('name'),u.searchParams.get('variant')||'400'));return}
-if(u.pathname==='/api/status'){send(res,200,{spotify:!!config.SPOTIFY_CLIENT_ID,spotifyClientId:config.SPOTIFY_CLIENT_ID||'',spotifyConnected:!!(spotifyToken||spotifyRefresh),youtube:!!config.YOUTUBE_API_KEY,settingsToken,redirect});return}
+if(u.pathname==='/api/status'){send(res,200,{spotify:!!config.SPOTIFY_CLIENT_ID,spotifyClientId:config.SPOTIFY_CLIENT_ID||'',spotifyConnected:!!(spotifyToken||spotifyRefresh),youtube:!!config.YOUTUBE_API_KEY,...gameArtwork.status(),settingsToken,redirect});return}
+if(u.pathname==='/api/artwork/search'){send(res,200,await gameArtwork.search(u.searchParams.get('provider'),u.searchParams.get('q')||''));return}
+if(u.pathname==='/api/artwork/images'){send(res,200,await gameArtwork.images(u.searchParams.get('provider'),u.searchParams.get('id')||''));return}
 if(u.pathname==='/api/search'){const q=u.searchParams.get('q')||'';if(q.length<2||q.length>300)throw Error('Введите от 2 до 300 символов');send(res,200,await search(u.searchParams.get('provider'),q));return}
 if(u.pathname==='/api/album'){send(res,200,await album(u.searchParams.get('provider'),u.searchParams.get('id')||''));return}
 if(u.pathname==='/api/spotify/preview'){const id=u.searchParams.get('id')||'';if(!/^[A-Za-z0-9]{22}$/.test(id))throw Error('Некорректный альбом Spotify');send(res,200,await spotifyPreview(id,u.searchParams.get('type')||'album'));return}

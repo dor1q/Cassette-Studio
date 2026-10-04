@@ -14,6 +14,7 @@
     "desktop/icon.png",
     "server.mjs",
     "decal-catalog.mjs",
+    "src/overlay-remix-kit.js",
     "catalog-match.mjs",
     "google-fonts.mjs",
     "studio-logos.json",
@@ -23,6 +24,8 @@
     "package.json",
     "desktop/spotify-session.mjs",
     "music-importer.mjs",
+    "music-labels.mjs",
+    "game-artwork.mjs",
     "music-links.mjs",
     "music-network.mjs"
   ],

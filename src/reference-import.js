@@ -1,4 +1,5 @@
 import {normalizePaint} from './color-paint.js';
+import {recordLabelMetadata} from '../music-labels.mjs';
 import {makeLayer,resetSurfaces,dimensions,panelRects,parseTracks,clone,uid,clamp} from './model.js';
 import {CASSETTE_TEMPLATE} from './cassette-template.js';
 import {rebuildReferenceFlow,updateReferenceFlapProduction} from './reference-flow.js';
@@ -11,8 +12,8 @@ export function referencePosition(p,xPercent,yPercent,w,h,rotation=0,surface='ou
  return {x:cx-(w*Math.cos(a)-h*Math.sin(a))/2,y:cy-(w*Math.sin(a)+h*Math.cos(a))/2};
 }
 export function importReference(p,url){
- const u=new URL(url),q=u.searchParams,mode=referenceMode(url),label=mode==='label';for(const key of ['referenceCoverChoices','referenceBackgroundChoices','referenceCoverIndex','referenceCoverIndices','referenceRequestedCoverIndex','referenceMusicMetadata','referenceMusicMetadataSource','referenceArtworkSource','referenceFlowArchive','referenceFlowTemplate'])delete p[key];
- Object.assign(p.data,{artist:q.get('musicArtist')||'',album:q.get('musicAlbum')||'',note:'',stereo:q.get('musicDS')??'STEREO SURROUND',url:q.get('playlistUrl')||'',lyrics:q.get('musicLyrics')||'',production:label?(q.get('musicPL')??q.get('musicProd')??''):(q.get('musicProd')??q.get('musicPL')??'')});
+ const u=new URL(url),q=u.searchParams,mode=referenceMode(url),label=mode==='label';for(const key of ['referenceCoverChoices','referenceBackgroundChoices','referenceBackgroundChoicesScope','referenceCoverIndex','referenceCoverIndices','referenceRequestedCoverIndex','referenceMusicMetadata','referenceMusicMetadataSource','referenceArtworkSource','referenceFlowArchive','referenceFlowTemplate'])delete p[key];
+ Object.assign(p.data,{artist:q.get('musicArtist')||'',album:q.get('musicAlbum')||'',note:'',stereo:q.get('musicDS')??'STEREO SURROUND',url:q.get('playlistUrl')||'',lyrics:q.get('musicLyrics')||'',production:label?(q.get('musicPL')??q.get('musicProd')??''):(q.get('musicProd')??q.get('musicPL')??''),...recordLabelMetadata([])});
  for(const side of ['A','B'])p.data[side]=q.has('music'+side)?parseTracks(q.get('music'+side).replace(/\|/g,'\n'),true):[];
  delete p.layout.panelWidths;delete p.layout.referenceTemplate;
  if(label)Object.assign(p.layout,CASSETTE_TEMPLATE,{sync:referenceSynced(q)});else Object.assign(p.layout,referenceLayout(q));

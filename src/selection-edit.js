@@ -41,5 +41,8 @@ export function duplicateSelection(project,layer,surface,{joined=true,dx=3,dy=3}
  const copy={...referenceFlowCopy(layer,surface),id:uid(),name:layer.name+' копия',x:layer.x+dx,y:layer.y+dy};
  delete copy.referenceFlowEditGroup;
  if(copy.source==='referenceContents')delete copy.referenceBlockCopy;
+ // A user-created copy is a manual logo choice. Its bytes and styling stay
+ // intact, but later albums and automatic palette changes must not manage it.
+ for(const key of Object.keys(copy))if(key.startsWith('automaticRecordLabelLogo')||key.startsWith('recordLabelLogo'))delete copy[key];
  return [copy];
 }

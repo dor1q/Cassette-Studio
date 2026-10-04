@@ -1,12 +1,13 @@
 import {uid,resetSurfaces,balance} from './model.js';
 import {extractAlbumColors} from './album-colors.js';
+import {recordLabelMetadata} from '../music-labels.mjs';
 
 export function importMusicData(project,album,target='both',{tracksOnly=false}={}){
  if(!['A','B','both'].includes(target)||tracksOnly&&target==='both')throw Error('Выберите сторону A или B');
  validateMusicData(album);
  const tracks=album.tracks.map(t=>({...t,id:uid(),title:String(t.title),artist:String(t.artist||''),seconds:Math.max(0,Math.round(Number(t.seconds)||0))}));
  if(target==='both'){
-  Object.assign(project.data,{artist:album.artist||'',album:album.album||'',url:album.url||'',note:album.note||project.data.note});
+  Object.assign(project.data,{artist:album.artist||'',album:album.album||'',url:album.url||'',note:album.note||project.data.note,...recordLabelMetadata(album.recordLabels,album.recordLabelSource)});
   [project.data.A,project.data.B]=balance(tracks);
  }else project.data[target]=tracks;
  if(!tracksOnly&&!project.settings.lockDesign){
