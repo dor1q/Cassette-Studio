@@ -28,7 +28,7 @@ export function orientedPageSvg(page){
  return `${match[1]}<g transform="rotate(${page.rotation} ${viewBox[0]+viewBox[2]/2} ${viewBox[1]+viewBox[3]/2})">${match[2]}</g></svg>`;
 }
 export function prepareExport(p,options={}){
- const opts={format:'pdf',mode:'jcard',surface:'outer',selection:'all',blank:false,bleed:0,dpi:300,paper:'a4',copies:1,guides:true,sheet:'auto',offsetX:0,offsetY:0,duplexFlip:'long',...options};
+ const opts={format:'pdf',mode:'jcard',surface:'outer',selection:'all',blank:false,bleed:0,dpi:300,paper:'a4',copies:1,guides:false,sheet:'auto',offsetX:0,offsetY:0,duplexFlip:'long',...options};
  const production=isProductionSheet(opts.sheet),trimmed=opts.sheet==='12up-trim';
  if(trimmed){opts.sheet='12up';opts.bleed=0}
  if(opts.mode==='label'&&['body','full'].includes(p.layout.printArea))opts.bleed=0;
@@ -62,7 +62,7 @@ export async function pngWithDpi(blob,dpi){
 async function canvasPng(canvas,dpi){const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('Не удалось сохранить PNG.');return pngWithDpi(blob,dpi)}
 
 export async function exportProject(p,options={}){
- const opts={format:'pdf',mode:'jcard',surface:'outer',selection:'all',blank:false,bleed:0,dpi:300,paper:'a4',copies:1,guides:true,sheet:'auto',offsetX:0,offsetY:0,duplexFlip:'long',shareUrl:'',includeQr:true,...options},name=(p.title||p.data.album||'cassette').replace(/[<>:"/\\|?*]/g,'-');
+ const opts={format:'pdf',mode:'jcard',surface:'outer',selection:'all',blank:false,bleed:0,dpi:300,paper:'a4',copies:1,guides:false,sheet:'auto',offsetX:0,offsetY:0,duplexFlip:'long',shareUrl:'',includeQr:true,...options},name=(p.title||p.data.album||'cassette').replace(/[<>:"/\\|?*]/g,'-');
  if(opts.format==='printshop'){
   const r=printShopLetter(p,opts),canvas=await raster(r.svg,r.w,r.h,150),doc=new jsPDF({unit:'mm',format:[r.w,r.h],orientation:'portrait',compress:true});doc.addImage(canvas.toDataURL('image/png'),'PNG',0,0,r.w,r.h,undefined,'FAST');doc.setProperties({title:p.title,subject:'Cassette Studio — print specifications'});download(doc.output('blob'),`${name}-print-specs.pdf`);return;
  }

@@ -2,6 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProject} from '../src/model.js';
 import {exportControlState,exportDialogHtml,bindExportDialog} from '../src/export-dialog.js';
+test('normal export offers visible optional guides without preselecting them',()=>{
+ const p=createProject();p.settings.guides=true;
+ for(const mode of ['jcard','label']){
+  const html=exportDialogHtml(p,{mode}),checkbox=html.match(/<input id="exportGuides"[^>]*>/)?.[0];
+  assert.ok(checkbox);assert.doesNotMatch(checkbox,/\bchecked\b|\bdisabled\b/);
+  assert.ok(html.indexOf('id="exportGuides"')<html.indexOf('<summary>Настройки печати</summary>'));
+ }
+});
+test('blank templates keep their necessary guides when changing layouts',()=>{
+ const p=createProject(),html=exportDialogHtml(p,{blank:true});
+ assert.match(html,/<input id="exportGuides"[^>]*checked disabled/);
+ const fields=Object.fromEntries(['exportSheet','exportSelection','exportPaper','exportBleed','exportDpi','exportOffsetX','exportOffsetY','exportCopies','exportGuides','exportDuplex','exportQuantityLabel','exportLayoutHint'].map(id=>[id,{value:'',checked:false,disabled:false}]));
+ fields.exportSheet.value='auto';fields.exportSelection.value='all';
+ bindExportDialog(p,{blank:true,get:id=>fields[id]});
+ for(const sheet of ['auto','chalkpit-jcard','2up','auto']){
+  fields.exportSheet.value=sheet;fields.exportSheet.onchange();
+  assert.equal(fields.exportGuides.checked,true);assert.equal(fields.exportGuides.disabled,true);
+ }
+});
 test('export options expose templates for the actual cassette area and J-card size',()=>{
  const p=createProject();let html=exportDialogHtml(p,{mode:'label'});assert.match(html,/12up-trim/);assert.doesNotMatch(html,/chalkpit-cassette-4up/);
  p.layout.printArea='full';html=exportDialogHtml(p,{mode:'label'});assert.match(html,/chalkpit-cassette-4up/);assert.doesNotMatch(html,/value="12up"/);
