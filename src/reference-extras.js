@@ -4,7 +4,7 @@ import {prepareRemix,normalizeRemixParts} from './overlay-remix.js';
 import {remixGeometry,remixSeed} from './overlay-remix-plan.js';
 export function spotifyCodeUrl(params){
  const id=params.get('id')||'',link=params.get('playlistUrl')||'';
- let match=/^sa\.([A-Za-z0-9]{22})$/.exec(id),type='album',value=match?.[1];
+ let match=/^(sa|sp)\.([A-Za-z0-9]{22})$/.exec(id),type=match?.[1]==='sp'?'playlist':'album',value=match?.[2];
  if(!value){match=link.match(/open\.spotify\.com\/(album|playlist)\/([A-Za-z0-9]{22})(?:[/?#]|$)/);type=match?.[1];value=match?.[2]}
  return value?`https://scannables.scdn.co/uri/plain/png/000000/white/640/spotify:${type}:${value}`:null;
 }

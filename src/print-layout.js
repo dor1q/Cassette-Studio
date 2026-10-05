@@ -12,7 +12,10 @@ export function printLayout(items,{mode='jcard',paper='a4',copies=1,bleed=0,shee
    const r=items[i];if(r.w>w-20||r.h>h-20)throw Error('Макет не помещается на лист. Выберите лист по размеру макета.');
    if(slots===2&&r.h*2+10>h-20)throw Error('Два вкладыша не помещаются на лист. Выберите больший лист или одну копию на страницу.');
    if(pages.at(-1).length)pages.push([]);
-   const rotate=i%2===1&&((w>h&&duplexFlip==='long')||(w<=h&&duplexFlip==='short'));
+   // Exporting the current inside still needs the same binding-edge rotation
+   // as the inside of a complete pair. Unnamed legacy items retain pair order.
+   const reverse=r.s==='inner'||(!r.s&&i%2===1);
+   const rotate=reverse&&((w>h&&duplexFlip==='long')||(w<=h&&duplexFlip==='short'));
    for(let slot=0;slot<Math.min(slots,copies-c);slot++){
     const y=slots===1?(h-r.h)/2:(h-2*r.h-10)/2+slot*(r.h+10);
     add(i,(w-r.w)/2,rotate?h-r.h-y:y,rotate?180:0);

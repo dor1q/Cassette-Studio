@@ -56,7 +56,8 @@ test('automatic tint produces valid QR and barcode colors on dark and light back
 
 test('album-specific shadow has a separate SVG filter',()=>{
  const p=createProject();importReference(p,'https://vhs.texs.org/en/jcard?'+new URLSearchParams({musicArtist:'Artist',musicAlbum:'Album',f3:'1.2s.7.2s.8'}));
- const svg=renderSvg(p,'outer').svg;assert.match(svg,/<filter id="[^"]+-album-shadow"/);assert.match(svg,/<tspan[^>]+filter="url\(#[^)]+-album-shadow\)"/);
+ const svg=renderSvg(p,'outer').svg;assert.match(svg,/<filter id="[^"]+-album-shadow"/);assert.match(svg,/<text[^>]+filter="url\(#[^)]+-album-shadow\)"[^>]*>Album<\/text>/);
+ assert.doesNotMatch(svg,/<text[^>]+filter="[^"]+"[^>]*>Artist/);
 });
 
 test('tinted codes follow shared colors while explicit and untinted code colors stay unchanged',()=>{

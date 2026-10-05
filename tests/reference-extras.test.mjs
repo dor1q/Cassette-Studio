@@ -44,6 +44,19 @@ test('Spotify Codes use album or playlist identity and restore separate sides us
  assert.equal(result.restored,2);assert.equal(result.missing,0);assert.equal(p.surfaces.labelA.filter(l=>l.category==='spotifyCode').length,1);assert.equal(p.surfaces.labelB.filter(l=>l.category==='spotifyCode').length,1);
  assert.equal(p.surfaces.labelA.at(-1).rotation,90);assert.equal(migrate(p).surfaces.labelB.at(-1).src,image);
 });
+
+test('compact Spotify playlist references restore codes even when the artwork is hidden and playlistUrl is absent',async()=>{
+ const params=new URLSearchParams({id:'sp.37i9dQZF1DXcBWIGoYBM5M',mp:'_',sc:'20_80_100_0|b~80_20_50_0',ss:'0'}),url=spotifyCodeUrl(params);
+ assert.match(url,/spotify:playlist:37i9dQZF1DXcBWIGoYBM5M$/);
+ assert.match(spotifyCodeUrl(new URLSearchParams({id:'sa.5SknXhmjHijD0uU1Pm2HBr'})),/spotify:album:5SknXhmjHijD0uU1Pm2HBr$/);
+ for(const id of ['sp.invalid','sp.37i9dQZF1DXcBWIGoYBM5M/other','st.5SknXhmjHijD0uU1Pm2HBr'])assert.equal(spotifyCodeUrl(new URLSearchParams({id})),null);
+ const project=createProject();importReference(project,'https://vhs.texs.org/en/cassette?'+params);assert.equal(project.data.url,'');
+ const requests=[],result=await restoreReferenceExtras(project,params,async endpoint=>{requests.push(endpoint);return {src:image}},'label');
+ assert.equal(result.restored,2);assert.equal(result.missing,0);assert.deepEqual(requests,['/api/image?url='+encodeURIComponent(url)]);
+ const saved=migrate(project);for(const surface of ['labelA','labelB'])assert.equal(saved.surfaces[surface].find(l=>l.category==='spotifyCode').src,image);
+ const reopened=createProject();importReference(reopened,'https://vhs.texs.org/en/cassette?'+params);
+ const offline=await restoreReferenceExtras(reopened,params,async()=>{throw Error('offline')},'label',Object.values(saved.surfaces).flat());assert.equal(offline.restored,2);assert.equal(offline.missing,0);
+});
 test('overlay parameters restore opacity, blending, layer order and cached offline images',async()=>{
  const params=new URLSearchParams({ol:'1.2.45|a1.1.70.c|c.1.100',col:'https://vhs.texs.org/_overlays/custom.png',ds:'1',cxt:'Caption|50|50|0|50'}),overlays=parseReferenceOverlays(params.get('ol'));
  assert.equal(overlays.length,3);assert.equal(overlays[0].blendMode,'hard-light');assert.equal(overlays[1].seed,12);assert.equal(parseReferenceOverlays('2.1.70','label').length,0);

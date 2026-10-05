@@ -10,10 +10,18 @@ export const clone=v=>structuredClone(v);
 export const uid=()=>globalThis.crypto?.randomUUID?.()||'l'+Date.now()+Math.random().toString(36).slice(2);
 export const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
 export const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
-export function parseTracks(txt,artistLast=false){return String(txt).split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map(t=>{const m=t.match(/\((\d+):([0-5]\d)\)\s*$/);let title=(m?t.slice(0,m.index):t).replace(/^\d+[.)]\s*/,'').trim(),artist='';const parts=title.match(/^(.+?)\s+[—–-]\s+(.+)$/);if(parts){artist=parts[artistLast?2:1];title=parts[artistLast?1:2]}return {id:uid(),title,artist,seconds:m?Number(m[1])*60+Number(m[2]):0}})}
+export function parseTrackDuration(value){
+ const match=String(value??'').trim().match(/^(\d+):([0-5]\d)(?::([0-5]\d))?$/);if(!match)return null;
+ const seconds=match[3]===undefined?Number(match[1])*60+Number(match[2]):Number(match[1])*3600+Number(match[2])*60+Number(match[3]);
+ return Number.isSafeInteger(seconds)?seconds:null;
+}
+export function parseTracks(txt,artistLast=false){return String(txt).split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map(t=>{
+ const duration=t.match(/\((\d+:\d{2}(?::\d{2})?)\)\s*$/),seconds=duration?parseTrackDuration(duration[1]):null,validDuration=seconds!==null;
+ let title=(validDuration?t.slice(0,duration.index):t).replace(/^\d+[.)]\s*/,'').trim(),artist='';const parts=title.match(/^(.+?)\s+[—–-]\s+(.+)$/);if(parts){artist=parts[artistLast?2:1];title=parts[artistLast?1:2]}return {id:uid(),title,artist,seconds:validDuration?seconds:0};
+})}
 export function serializeTracks(tracks){return tracks.map(t=>(t.artist?t.artist+' — ':'')+t.title+(t.seconds?' ('+time(t.seconds)+')':'')).join('\n')}
 
-export const time=n=>`${Math.floor((Number(n)||0)/60)}:${String(Math.round((Number(n)||0)%60)).padStart(2,'0')}`;
+export const time=n=>{const value=Number(n),seconds=Number.isFinite(value)?Math.max(0,Math.floor(value)):0,minutes=Math.floor(seconds/60),tail=String(seconds%60).padStart(2,'0');return minutes>=100?`${Math.floor(minutes/60)}:${String(minutes%60).padStart(2,'0')}:${tail}`:`${minutes}:${tail}`};
 export const total=arr=>arr.reduce((a,t)=>a+(Number(t.seconds)||0),0);
 export function balance(arr){const sum=arr.reduce((a,t)=>a+(t.seconds||1),0);let best=Infinity,split=0,n=0;for(let i=0;i<=arr.length;i++){if(Math.abs(sum-2*n)<best){best=Math.abs(sum-2*n);split=i}n+=arr[i]?.seconds||1}return [arr.slice(0,split),arr.slice(split)]}
 export {parseM3U} from './m3u.js';

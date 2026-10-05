@@ -27,8 +27,13 @@ export function parseReferenceArtwork(value){
  return {index,zoom,x:x*25.4/600,y:y*25.4/600,rotation};
 }
 
+function legacyReferenceArtwork(params,label){
+ const read=(key,fallback,min,max)=>{const raw=params.get(key),n=raw?.trim()?Number(raw):NaN;return Number.isFinite(n)&&n>=min&&n<=max?n:fallback};
+ return {zoom:read('cassetteScale',label?2:1,.3,6),x:read('cassetteOffsetX',0,-20000,20000)*25.4/600,y:read('cassetteOffsetY',0,-20000,20000)*25.4/600,rotation:read('cassetteRotation',0,-360,360)};
+}
+
 export function applyReferenceArtwork(project,params,naturalWidth,naturalHeight,mode='jcard'){
- const label=mode==='label',position=parseReferenceArtwork(params.get('mp'))||parseReferenceArtwork(params.get('cp'))||{zoom:label?2:1,x:0,y:0,rotation:0},surfaces=label?['labelA','labelB']:['outer'];
+ const label=mode==='label',position=parseReferenceArtwork(params.get('mp'))||parseReferenceArtwork(params.get('cp'))||legacyReferenceArtwork(params,label),surfaces=label?['labelA','labelB']:['outer'];
  for(const surface of surfaces)for(const layer of project.surfaces[surface].filter(l=>l.category==='albumCover')){
   if(params.get('mp')==='_'){layer.visible=false;continue}const fit=params.get('pf')==='f';layer.fit=params.get('pf')==='s'?'stretch':fit||params.get('pFM')==='1'?'meet':'slice';
   if(position){

@@ -84,3 +84,35 @@ test('repeat reference import reuses embedded album artwork only for the same so
  // Imported projects retain valid image bytes; placeholder data in this test is discarded.
  p.uploads[0].src='data:image/png;base64,AA==';assert.equal(cachedReferenceArtwork(migrate(p),url),p.uploads[0].src);
 });
+
+test('legacy cassette image parameters match equivalent modern bundles in each supported format',()=>{
+ for(const mode of ['label','jcard']){
+  const legacy=createProject(),modern=createProject();applyAlbumArt(legacy,'data:image/png;base64,AA==');applyAlbumArt(modern,'data:image/png;base64,AA==');
+  applyReferenceArtwork(legacy,new URLSearchParams({cassetteScale:'1.5',cassetteOffsetX:'12',cassetteOffsetY:'-24',cassetteRotation:'90',pf:'f',opacity:'.7'}),900,600,mode);
+  applyReferenceArtwork(modern,new URLSearchParams({mp:'0.1.50.12.-24.90',pf:'f',opacity:'.7'}),900,600,mode);
+  for(const surface of mode==='label'?['labelA','labelB']:['outer']){
+   const a=legacy.surfaces[surface].find(l=>l.category==='albumCover'),b=modern.surfaces[surface].find(l=>l.category==='albumCover');
+   for(const key of ['x','y','w','h','fit','cropZoom','cropX','cropY','cropRotation','opacity'])assert.equal(a[key],b[key]);
+  }
+  const saved=migrate(JSON.parse(JSON.stringify(legacy)));
+  assert.match(renderSvg(saved,mode==='label'?'labelA':'outer').svg,/rotate\(90\)/);
+ }
+});
+
+test('modern image bundles override stale legacy transforms and hidden artwork stays hidden',()=>{
+ const project=createProject();applyAlbumArt(project,'data:image/png;base64,AA==');
+ const params=new URLSearchParams({mp:'0.1.25.-10.50.-45',cassetteScale:'5',cassetteOffsetX:'999',cassetteOffsetY:'999',cassetteRotation:'90',pf:'f'});
+ applyReferenceArtwork(project,params,640,640,'label');
+ for(const surface of ['labelA','labelB']){const art=project.surfaces[surface].find(l=>l.category==='albumCover');assert.equal(art.cropZoom,1.25*1.06);assert.equal(art.cropRotation,-45);assert.ok(Math.abs(art.cropX+10*25.4/72)<1e-9);assert.ok(Math.abs(art.cropY-50*25.4/72)<1e-9)}
+ params.set('mp','_');applyReferenceArtwork(project,params,640,640,'label');assert.equal(project.surfaces.labelA.find(l=>l.category==='albumCover').visible,false);assert.equal(project.surfaces.labelB.find(l=>l.category==='albumCover').visible,false);
+});
+
+test('partial legacy image parameters restore valid fields and ignore malformed transforms',()=>{
+ const project=createProject();applyAlbumArt(project,'data:image/png;base64,AA==');
+ applyReferenceArtwork(project,new URLSearchParams({cassetteOffsetX:'12',cassetteOffsetY:'-24',pf:'f'}),640,640,'label');
+ const art=project.surfaces.labelA.find(l=>l.category==='albumCover');assert.equal(art.cropZoom,2*1.06);assert.ok(Math.abs(art.cropX-12*25.4/72)<1e-9);assert.ok(Math.abs(art.cropY+24*25.4/72)<1e-9);
+ for(const invalid of ['','NaN','Infinity','1.5garbage','999999']){
+  applyReferenceArtwork(project,new URLSearchParams({cassetteScale:invalid,cassetteOffsetX:invalid,cassetteRotation:invalid,pf:'f'}),640,640,'label');
+  assert.equal(art.cropZoom,2*1.06);assert.equal(art.cropX,0);assert.equal(art.cropRotation,0);assert.ok(Number.isFinite(art.cropY));
+ }
+});

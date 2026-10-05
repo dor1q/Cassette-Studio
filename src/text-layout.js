@@ -89,9 +89,11 @@ function paragraphWords(glyphs){
 export function layoutStyledText(value,layer,{measureText,albumSpan=null}={}){
  const source=paragraphs(styledGlyphs(value,layer,{albumSpan}));
  const calculate=size=>{
-  const lineRuns=[],widths=[],lineHeights=[],baselines=[],insets=[];
+  const lineRuns=[],widths=[],availableWidths=[],lineHeights=[],baselines=[],insets=[];
   let top=0;
-  const maxRunSize=runs=>runs.reduce((maximum,run)=>Math.max(maximum,resolvedRunStyle(run,layer,size).size),size);
+  // A hidden artist or a wrapped album-only line must not retain the
+  // artist's larger leading. Empty paragraphs still use the base face.
+  const maxRunSize=runs=>runs.length?runs.reduce((maximum,run)=>Math.max(maximum,resolvedRunStyle(run,layer,size).size),0):size;
   const fits=glyphs=>{
    const runs=glyphRuns(glyphs),bounds=layer.flapTapered?taperedInsets(layer,size,lineRuns.length,top+.5*maxRunSize(runs)*layer.lineHeight):null;
    const available=bounds?Math.max(size,layer.w-bounds.left-bounds.right):layer.w;
@@ -101,7 +103,9 @@ export function layoutStyledText(value,layer,{measureText,albumSpan=null}={}){
    const runs=glyphRuns(glyphs),maxSize=maxRunSize(runs);
    const height=maxSize*layer.lineHeight;
    lineRuns.push(runs);widths.push(measuredRunsWidth(runs,layer,size,measureText));lineHeights.push(height);baselines.push(top+.9*maxSize);
-   if(layer.flapTapered)insets.push(taperedInsets(layer,size,lineRuns.length-1,top+height/2));
+   const bounds=layer.flapTapered?taperedInsets(layer,size,lineRuns.length-1,top+height/2):null;
+   if(bounds)insets.push(bounds);
+   availableWidths.push(bounds?Math.max(size,layer.w-bounds.left-bounds.right):layer.w);
    top+=height;
   };
   for(const paragraph of source){
@@ -116,11 +120,15 @@ export function layoutStyledText(value,layer,{measureText,albumSpan=null}={}){
    }
    if(current.length)append(current);
   }
-  return {lines:lineRuns.map(markdownLine),lineRuns,widths,lineHeights,baselines,height:top,...(layer.flapTapered?{insets}:{})};
+  return {lines:lineRuns.map(markdownLine),lineRuns,widths,availableWidths,lineHeights,baselines,height:top,...(layer.flapTapered?{insets}:{})};
  };
  let size=layer.size,layout=calculate(size);
- if(layer.autoFit)for(let attempt=0;attempt<80&&layout.height>layer.h+1e-9&&size>.65;attempt++){size*=.96;layout=calculate(size)}
- return {...layout,size,overflow:layout.height>layer.h+.1};
+ const tooWide=margin=>layout.widths.some((width,index)=>width>layout.availableWidths[index]+margin);
+ if(layer.autoFit)for(let attempt=0;attempt<80&&(layout.height>layer.h+1e-9||tooWide(1e-9))&&size>.1;attempt++){
+  const widthScale=layout.widths.reduce((minimum,width,index)=>width>layout.availableWidths[index]?Math.min(minimum,layout.availableWidths[index]/width):minimum,1);
+  size=Math.max(.1,size*Math.min(.96,layer.h/layout.height,widthScale));layout=calculate(size);
+ }
+ return {...layout,size,overflow:layout.height>layer.h+.1||tooWide(.1)};
 }
 
 export function fittingLineCount(layout,height){
