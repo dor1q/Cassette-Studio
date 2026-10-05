@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {createProject,clone,migrate,parseM3U,balance} from '../src/model.js';
+import {createProject,clone,migrate,parseM3U,balance,makeLayer} from '../src/model.js';
+import {replaceCDTracks} from '../src/cd-track-editing.js';
 
 // Exercise the real app callbacks; replace file, database and FontFace boundaries.
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
@@ -21,7 +22,7 @@ function harness(initial=createProject(),{loadProjects=async()=>[],fontLoad=asyn
   async load(){calls.fonts.push(this);await fontLoad(this);return this}
  }
  const document={fonts:{add:font=>faces.add(font),delete:font=>faces.delete(font)}};
- return new Function('initial','calls','inputs','faces','clone','migrate','parseM3U','balance','loadProjects','FontFace','document',`
+ return new Function('initial','calls','inputs','faces','clone','migrate','parseM3U','balance','replaceCDTracks','loadProjects','FontFace','document',`
   let p=initial,m3uTarget='A',selected='keep-selection',projectRevision=0;
   const $=name=>inputs[name],checkpoint=()=>{projectRevision++;calls.history.push(clone(p))},changed=()=>{projectRevision++;calls.saved.push(p)},full=()=>calls.full.push(p),toast=message=>calls.toasts.push(message);
   ${handlers}
@@ -29,7 +30,7 @@ function harness(initial=createProject(),{loadProjects=async()=>[],fontLoad=asyn
   return {calls,faces,replace:value=>p=value,edit:edit=>{edit(p);projectRevision++},side:value=>m3uTarget=value,state:()=>({p,selected,revision:projectRevision}),
    m3u:file=>inputs.m3uFile.onchange({target:{files:[file],value:'chosen'}}),json:file=>inputs.projectFile.onchange({target:{files:[file],value:'chosen'}}),library:loadLibrary,
    beginM3UUpload,beginProjectOpen,isProjectOpenCurrent,prepareProjectOpen,commitPreparedProject,loadFonts};
- `)(initial,calls,inputs,faces,clone,migrate,parseM3U,balance,loadProjects,FontFace,document);
+ `)(initial,calls,inputs,faces,clone,migrate,parseM3U,balance,replaceCDTracks,loadProjects,FontFace,document);
 }
 function untouched(h,project){
  assert.equal(h.state().p,project);assert.equal(h.state().selected,'keep-selection');
@@ -66,6 +67,27 @@ test('the latest M3U selection wins even when the older file finishes first',asy
 test('M3U on both sides still balances tracks and reports both sides',async()=>{
  const h=harness();h.beginM3UUpload('both');await h.m3u({size:100,text:async()=>`${await m3uFile('One').text()}\n#EXTINF:120,Two\ntwo.mp3`});
  assert.equal(h.state().p.data.A.length,1);assert.equal(h.state().p.data.B.length,1);assert.equal(h.calls.history.length,1);assert.match(h.calls.toasts[0],/На обе стороны/);
+});
+
+test('the actual CD M3U callback keeps a complete ordered disc without cassette balancing',async()=>{
+ const p=createProject();p.editorMode='cd-label';const cassetteLayers=clone(p.surfaces.labelA),h=harness(p);h.beginM3UUpload('cd');
+ await h.m3u({size:100,text:async()=>`${await m3uFile('First',240).text()}\n#EXTINF:60,Second\nsecond.mp3\n#EXTINF:80,Third\nthird.mp3`});
+ assert.deepEqual(p.data.A.map(track=>[track.title,track.seconds]),[['First',240],['Second',60],['Third',80]]);assert.deepEqual(p.data.B,[]);
+ assert.deepEqual(p.surfaces.labelA,cassetteLayers);assert.equal(h.calls.history.length,1);assert.equal(h.calls.saved.length,1);assert.match(h.calls.toasts[0],/На CD импортировано треков: 3/);
+});
+
+test('JSON and library opening preserve the CD editor mode and artwork on every CD face',async()=>{
+ for(const kind of ['json','library'])for(const mode of ['cd-label','cd-insert','cd-tray']){
+  const next=createProject();next.editorMode=mode;next.title='CD project';next.layout.cdInsertPanels=3;next.layout.cdInsertDouble=true;
+  const surfaces=['cdLabel','cdFront','cdInside','cdTray','cdTrayInside'],src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6feAAAAAASUVORK5CYII=';
+  for(const [index,surface]of surfaces.entries())next.surfaces[surface].push(makeLayer('image',{name:'Saved artwork '+index,src,x:3+index,y:4,w:45,h:36,rotation:10,fit:'meet',cropZoom:1.5,locked:true}));
+  const h=harness(undefined,{loadProjects:async()=>[{id:'disc',project:next}]});
+  if(kind==='json')await h.json(projectFile(next));else await h.library('disc');
+  const opened=h.state().p;assert.equal(opened.editorMode,mode);assert.equal(opened.layout.cdInsertPanels,3);assert.equal(opened.layout.cdInsertDouble,true);
+  const properties=['type','name','source','src','x','y','w','h','rotation','fit','cropZoom','color','font','locked','visible'],savedFields=layer=>Object.fromEntries(properties.map(key=>[key,layer[key]]));
+  for(const surface of surfaces)assert.deepEqual(opened.surfaces[surface].map(savedFields),next.surfaces[surface].map(savedFields));
+  assert.equal(h.calls.full.length,1);assert.equal(h.calls.history.length,1);assert.equal(h.calls.saved.length,1);
+ }
 });
 
 test('JSON opening prepares fonts before replacing the project or recording undo',async()=>{

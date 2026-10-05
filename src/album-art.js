@@ -1,5 +1,6 @@
-import {makeLayer,dimensions} from './model.js';
+import {makeLayer,dimensions,panelRects} from './model.js';
 import {referenceCoverIndex} from './cover-choices.js';
+import {isCDMode,modeSurfaces} from './media-formats.js';
 
 export function referenceArtworkKey(url){
  const u=url instanceof URL?url:new URL(url),params=u.searchParams;
@@ -12,7 +13,14 @@ export function cachedReferenceArtwork(project,url){
 }
 
 export function albumArtLayer(project,surface){
- return project.surfaces[surface].find(l=>l.type==='image'&&(['albumCover','art'].includes(l.category)||['Обложка альбома','Обложка'].includes(l.name)));
+ return project.surfaces[surface]?.find(l=>l.type==='image'&&(['albumCover','art'].includes(l.category)||['Обложка альбома','Обложка'].includes(l.name)));
+}
+
+export function albumCoverFrame(project,surface){
+ const size=dimensions(project,surface);
+ if(surface.startsWith('label')||surface==='cdLabel')return {x:0,y:0,w:size.w,h:size.h};
+ const front=panelRects(project,surface).find(panel=>panel.index===2);
+ return {x:front?.x||0,y:0,w:front?.w||size.w,h:size.h};
 }
 
 export function canReplaceAlbumArt(project,surface){
@@ -42,20 +50,24 @@ function legacyReferenceArtwork(params,label){
 }
 
 export function applyReferenceArtwork(project,params,naturalWidth,naturalHeight,mode='jcard'){
- const label=mode==='label',position=parseReferenceArtwork(params.get('mp'))||parseReferenceArtwork(params.get('cp'))||legacyReferenceArtwork(params,label),surfaces=label?['labelA','labelB']:['outer'];
+ const label=mode==='label',cdLabel=mode==='cd-label',cdTray=mode==='cd-tray',parsedPosition=parseReferenceArtwork(params.get('mp'))||parseReferenceArtwork(params.get('cp')),position=parsedPosition||legacyReferenceArtwork(params,label),surfaces=isCDMode(mode)?modeSurfaces(project,mode,'front'):label?['labelA','labelB']:['outer'];
  for(const surface of surfaces)for(const layer of project.surfaces[surface].filter(l=>l.category==='albumCover')){
+  if(!canReplaceAlbumArt(project,surface))continue;
   if(params.get('mp')==='_'){layer.visible=false;continue}const fit=params.get('pf')==='f';layer.fit=params.get('pf')==='s'?'stretch':fit||params.get('pFM')==='1'?'meet':'slice';
   if(position){
    const factor=naturalWidth>0&&naturalHeight>0?Math.max(layer.w/naturalWidth,layer.h/naturalHeight)/Math.min(layer.w/naturalWidth,layer.h/naturalHeight):1;
-   layer.cropZoom=position.zoom*(label?1.06:1)/(layer.fit!=='slice'?1:factor);layer.cropX=position.x*(label?600/72:1);layer.cropY=position.y*(label?600/72:1);layer.cropRotation=position.rotation;
+   const zoom=cdTray?(Number(project.layout.cdTrayPosterScale)||1.1):mode==='cd-insert'&&!parsedPosition&&layer.fit==='slice'?1.59:position.zoom;
+   layer.cropZoom=zoom*(label?1.06:1)/(layer.fit!=='slice'?1:factor);layer.cropX=position.x*(label||cdLabel?600/72:1);layer.cropY=position.y*(label||cdLabel?600/72:1);layer.cropRotation=position.rotation;
   }
   const opacity=Number(params.get('opacity'));
-  layer.opacity=params.has('opacity')&&Number.isFinite(opacity)&&opacity>=0&&opacity<=1?opacity:label?.3:1;
+  layer.opacity=cdTray?Math.max(0,Math.min(1,(project.layout.cdTrayPosterOpacity??20)/100)):params.has('opacity')&&Number.isFinite(opacity)&&opacity>=0&&opacity<=1?opacity:label?.3:cdLabel?.8:1;
+  if(cdTray)layer.blur=Math.max(0,Math.min(20,(project.layout.cdTrayPosterBlur??60)*25.4/600));
  }
 }
 
-export function applyAlbumArt(project,src,target='both'){
- const surfaces=target==='both'?['outer','labelA','labelB']:['label'+target];
+export function applyAlbumArt(project,src,target='both',options={}){
+ if(target&&typeof target==='object'){options=target;target=options.target||'both'}
+ const mode=options.mode||project.editorMode,surfaces=options.surfaces||(isCDMode(mode)?modeSurfaces(project,mode,'front'):target==='both'?['outer','labelA','labelB']:['label'+target]);
  const result={applied:[],locked:[]};
  for(const surface of surfaces){
   if(!canReplaceAlbumArt(project,surface)){result.locked.push(surface);continue}
@@ -63,9 +75,9 @@ export function applyAlbumArt(project,src,target='both'){
   const existing=albumArtLayer(project,surface);
   result.applied.push(surface);
   if(existing){existing.src=src;existing.category='albumCover';delete existing.referenceAssetKey;delete existing.referenceCoverIndex;fitCoverImage(existing);continue}
-  const label=surface.startsWith('label'),size=dimensions(project,surface);
+  const label=surface.startsWith('label');
   const firstForeground=layers.findIndex(l=>l.category!=='background'&&l.referenceDecalLayer!=='background');
-  layers.splice(firstForeground<0?layers.length:firstForeground,0,fitCoverImage(makeLayer('image',{name:'Обложка альбома',category:'albumCover',src,x:label?0:project.layout.flap+project.layout.spine,y:0,w:label?size.w:project.layout.front,h:label?size.h:project.layout.height,opacity:label?.5:1})));
+  layers.splice(firstForeground<0?layers.length:firstForeground,0,fitCoverImage(makeLayer('image',{name:'Обложка альбома',category:'albumCover',src,...albumCoverFrame(project,surface),opacity:label?.5:1})));
  }
  const upload=project.uploads.find(u=>u.category==='albumCover');
  if(upload){upload.src=src;delete upload.referenceAssetKey}else project.uploads.push({name:'Обложка альбома',category:'albumCover',src});

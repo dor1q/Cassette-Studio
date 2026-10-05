@@ -1,8 +1,9 @@
 import logos from '../studio-logos.json' with {type: 'json'};
 import fallback from '../studio-logo-fallback.json' with {type: 'json'};
 import {recordLabelMetadata,normalizeRecordLabels} from '../music-labels.mjs';
-import {makeLayer,dimensions} from './model.js';
-import {REFERENCE_UNIT} from './reference-format.js';
+import {makeLayer,dimensions,panelRects} from './model.js';
+import {REFERENCE_UNIT,referenceCoverSurfaces} from './reference-format.js';
+import {isCDMode} from './media-formats.js';
 import {loadReferenceImage,referenceImageDimensions,referenceImageSource} from './reference-image-source.js';
 import {paintFallbackColor,autoPaintColor} from './color-paint.js';
 
@@ -71,9 +72,22 @@ export async function prepareRecordLabelLogo(album,request,{cached=[],getDimensi
 
 export function recordLabelLogoFrame(project,surface,asset){
  const {w:W,h:H}=dimensions(project,surface);
+ if(surface==='cdLabel'){const w=56*25.4/72,h=asset?Math.min(120*25.4/72,w*asset.h/asset.w):w;return {x:W*.1,y:H*.5-h/2,w,h}}
+ if(surface==='cdFront'||surface==='cdInside'){const w=150*REFERENCE_UNIT,front=panelRects(project,surface).find(panel=>panel.index===2);return {x:(front?.x||0)+60*REFERENCE_UNIT,y:H-w-55*REFERENCE_UNIT,w,h:w}}
+ if(surface==='cdTray'||surface==='cdTrayInside'){const w=Math.max(.5,project.layout.cdSpine-16*REFERENCE_UNIT),h=asset?Math.min(320*REFERENCE_UNIT,w*asset.h/asset.w):w;return {x:8*REFERENCE_UNIT,y:8*REFERENCE_UNIT,w,h}}
  if(surface.startsWith('label')){const w=W*.12,h=asset?w*asset.h/asset.w:w;return {x:5*W/251.16,y:H*.55-h/2,w,h}}
  const size=220*REFERENCE_UNIT*project.layout.spine/(300*REFERENCE_UNIT);
  return {x:project.layout.flap+(project.layout.spine-size)/2,y:26*REFERENCE_UNIT,w:size,h:size,cropRotation:90};
+}
+export function recordLabelLogoFrames(project,surface,asset){
+ const frame=recordLabelLogoFrame(project,surface,asset);
+ if(surface==='cdTray'||surface==='cdTrayInside'){
+  const {w}=dimensions(project,surface),frames=[];
+  if(project.layout.cdTrayLeftSpine!==false)frames.push({...frame,referenceBlockKey:'spineLogo1'});
+  if(project.layout.cdTrayRightSpine!==false)frames.push({...frame,x:w-project.layout.cdSpine+8*REFERENCE_UNIT,referenceBlockKey:'spineLogo2'});
+  return frames;
+ }
+ return [frame];
 }
 const logoLayer=layer=>layer.category==='studio'||['referenceLogo','referenceSpineLogo'].includes(layer.source);
 const editableAutomatic=layer=>layer.automaticRecordLabelLogo===true&&!layer.referenceBlockCopy&&!layer.locked&&layer.visible!==false&&layer.src===layer.automaticRecordLabelLogoSrc;
@@ -100,7 +114,7 @@ export function applyRecordLabelLogo(project,prepared,{mode='jcard',target='both
  if(!['A','B','both'].includes(target))throw Error('Выберите сторону A или B');
  const metadata=recordLabelMetadata(prepared?.metadata?.recordLabels,prepared?.metadata?.recordLabelSource);
  if(target==='both')Object.assign(project.data,metadata);
- const selected=surfaces||(mode==='label'?(target==='both'||project.layout.sync?['labelA','labelB']:['label'+target]):target==='both'?['outer']:[]),updated=[],skipped=[];
+ const selected=surfaces||(isCDMode(mode)?referenceCoverSurfaces(mode):mode==='label'?(target==='both'||project.layout.sync?['labelA','labelB']:['label'+target]):target==='both'?['outer']:[]),updated=[],skipped=[];
  if(project.settings.referenceLogoHidden||!prepared?.asset)return {updated,skipped:selected};
  if(mode==='label'&&project.layout.sync&&selected.length>1&&selected.some(surface=>(project.surfaces[surface]||[]).filter(logoLayer).some(layer=>!editableAutomatic(layer))))return {updated,skipped:selected};
  for(const surface of selected){
@@ -110,12 +124,12 @@ export function applyRecordLabelLogo(project,prepared,{mode='jcard',target='both
   // logo or a locked logo is a design choice, even if another import is automatic.
   if(existing.some(layer=>!editableAutomatic(layer))){skipped.push(surface);continue}
   const props={src:prepared.asset.src,referenceAssetKey:referenceImageSource(prepared.logo.path),name:'Логотип · '+prepared.logo.name,missingReference:false,automaticRecordLabelLogo:true,automaticRecordLabelLogoSrc:prepared.asset.src,recordLabelLogoName:prepared.logo.name,recordLabelLogoMatched:!!prepared.matched,recordLabelLogoLabels:[...metadata.recordLabels]};
-  if(automatic){Object.assign(automatic,props);updated.push(surface);continue}
+  if(automatic){for(const layer of existing.filter(editableAutomatic))Object.assign(layer,props);updated.push(surface);continue}
   const tintColor=logoColor(project,surface);
-  const layer=makeLayer('image',{category:'studio',source:surface.startsWith('label')?'referenceLogo':'referenceSpineLogo',fit:'meet',tintMode:'solid',tintColor,automaticRecordLabelLogoColor:tintColor,...recordLabelLogoFrame(project,surface,prepared.asset),...props});
-  if(surface==='outer')reserveDefaultSpineSpace(project,layer);
+  const newLayers=recordLabelLogoFrames(project,surface,prepared.asset).map(frame=>makeLayer('image',{category:'studio',source:surface.startsWith('label')?'referenceLogo':'referenceSpineLogo',fit:'meet',tintMode:'solid',tintColor,automaticRecordLabelLogoColor:tintColor,...frame,...props}));
+  if(surface==='outer'&&newLayers[0])reserveDefaultSpineSpace(project,newLayers[0]);
   const at=layers.findIndex(layer=>layer.referenceDecalLayer==='over'||['referenceText','referenceCode','spotifyCode'].includes(layer.category));
-  layers.splice(at<0?layers.length:at,0,layer);updated.push(surface);
+  layers.splice(at<0?layers.length:at,0,...newLayers);updated.push(surface);
  }
  updateRecordLabelLogoColors(project);return {updated,skipped};
 }

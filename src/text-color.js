@@ -2,7 +2,7 @@ import {normalizePaint} from './color-paint.js';
 import {referenceFlowLayers} from './reference-flow.js';
 
 export function surfaceBackground(project,surface){
- return surface==='inner'?project.settings.bgInside:surface==='labelB'?project.settings.bgB:project.settings.bg;
+ return ['inner','cdInside','cdTrayInside'].includes(surface)?project.settings.bgInside:surface==='labelB'?project.settings.bgB:project.settings.bg;
 }
 
 export function setProjectTextColor(project,value,{all=false}={}){

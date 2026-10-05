@@ -2,10 +2,12 @@ import QRCode from 'qrcode';
 import {dimensions,esc} from './model.js';
 import {printLayout} from './print-layout.js';
 import {isProductionSheet,productionPages,productionTemplate} from './production-print.js';
+import {normalizeEditorMode,isCDMode,modeSurfaces,modeDefaultSurface,modeTitle} from './media-formats.js';
+import {cdLabelGeometry,cdPanelRects} from './cd-layout.js';
 
 const formatNumber=n=>Number(n).toLocaleString('ru-RU',{maximumFractionDigits:2});
 const sizes={a4:'A4',letter:'Letter',a3:'A3',legal:'Legal',tabloid:'Tabloid',custom:'По размеру макета'};
-const sheets={auto:'Обычная', '2up':'Два вкладыша на листе','12up':'12 наклеек на листе','12up-trim':'12 наклеек без вылетов','chalkpit-jcard':'Chalkpit · J-card','chalkpit-jcard-8up':'Chalkpit · 8 J-card · SRA3','chalkpit-cassette-4up':'Chalkpit · 4 кассеты'};
+const sheets={auto:'Обычная', '2up':'Два вкладыша на листе','cd-2up':'Два CD Label на листе','cd-letter-2up':'OL1200 / Avery 8692 · 2 CD Label · Letter','12up':'12 наклеек на листе','12up-trim':'12 наклеек без вылетов','chalkpit-jcard':'Chalkpit · J-card','chalkpit-jcard-8up':'Chalkpit · 8 J-card · SRA3','chalkpit-cassette-4up':'Chalkpit · 4 кассеты'};
 const maxText=(s,n=200)=>String(s||'').replace(/[\u0000-\u001f]/g,' ').trim().slice(0,n);
 function wrap(text,limit=75){
  // Wide capitals and narrow URL punctuation must fit within the same margins.
@@ -20,9 +22,16 @@ function qrLink(p,shareUrl){
  const value=String(shareUrl||p.data.url||'').trim();if(!value)return '';
  try{const url=new URL(value);if(!['https:','http:'].includes(url.protocol)||url.username||url.password)throw Error();if(value.length>2000)throw Error();return url.href}catch{throw Error('Для QR в письме нужна обычная ссылка http/https длиной до 2000 символов.')}
 }
-export function printShopSpecs(p,{mode='jcard',surface='outer',selection='all',paper='a4',sheet='auto',bleed=0,copies=1,dpi=300,duplexFlip='long',shareUrl='',includeQr=true,offsetX=0,offsetY=0}={}){
- const surfaces=sheet==='chalkpit-jcard-8up'?['outer']:selection==='current'?[surface]:mode==='label'?['labelA','labelB']:p.layout.double?['outer','inner']:['outer'];
+export function printShopSpecs(p,{mode=p.editorMode??p.mode,surface,selection='all',paper='a4',sheet='auto',bleed=0,copies=1,dpi,duplexFlip='long',shareUrl='',includeQr=true,offsetX=0,offsetY=0}={}){
+ mode=normalizeEditorMode(mode);dpi=dpi??(isCDMode(mode)?600:300);const allowed=modeSurfaces(p,mode);surface=surface||modeDefaultSurface(mode);
+ if(selection==='current'&&!allowed.includes(surface))throw Error('Выбранная сторона не относится к этому макету.');
+ if(isCDMode(mode)&&isProductionSheet(sheet))throw Error('Производственные шаблоны кассет не подходят для CD.');
+ if(['12up','12up-trim'].includes(sheet)&&mode!=='label')throw Error('Раскладка на 12 наклеек предназначена для кассет.');
+ if(['cd-2up','cd-letter-2up'].includes(sheet)&&mode!=='cd-label')throw Error('Раскладка на два диска предназначена для CD Label.');
+ const all=mode==='jcard'&&!p.layout.double?['outer']:mode==='cd-insert'&&p.layout.cdInsertDouble!==true?['cdFront']:mode==='cd-tray'&&p.layout.cdTrayDouble!==true?['cdTray']:allowed;
+ const surfaces=sheet==='chalkpit-jcard-8up'?['outer']:selection==='current'?[surface]:all;
  if(sheet==='12up-trim')bleed=0;
+ if(sheet==='cd-letter-2up'){paper='letter';bleed=0;dpi=600}
  if(mode==='label'&&['body','full'].includes(p.layout.printArea))bleed=0;
  const frames=surfaces.map(s=>({s,...dimensions(p,s)}));
  const items=frames.map(f=>({...f,w:f.w+2*bleed,h:f.h+2*bleed}));
@@ -35,8 +44,10 @@ export function printShopSpecs(p,{mode='jcard',surface='outer',selection='all',p
  }else{
   const plan=printLayout(items,{mode,paper,sheet:sheet==='12up-trim'?'12up':sheet,bleed,copies,duplexFlip,offsetX,offsetY});page={w:plan.w,h:plan.h};pageCount=plan.pages.length;
  }
- const production=isProductionSheet(sheet),copiesPerPage=sheet==='chalkpit-jcard-8up'?8:sheet==='chalkpit-cassette-4up'?4:sheet.startsWith('12up')?12:sheet==='2up'?2:1;
- return {title:maxText(p.title||p.data.album||'Проект'),artist:maxText(p.data.artist,120),album:maxText(p.data.album,120),mode,printArea:p.layout.printArea||'label',finished:{w:finished.w,h:finished.h},page,pageCount,surfaces,layout:sheets[sheet]||sheets.auto,paper:production?sheets[sheet]:(sizes[paper]||sizes.custom),production,copiesPerPage,copies:Math.max(1,Math.min(30,Math.floor(Number(copies)||1))),bleed:Number(bleed)||0,dpi:Number(dpi)||300,duplex:mode==='jcard'&&surfaces.length>1,duplexFlip,url:includeQr?qrLink(p,shareUrl):'',linkKind:shareUrl?'Дизайн / ссылка':'Альбом / плейлист'};
+ const production=isProductionSheet(sheet),copiesPerPage=sheet==='chalkpit-jcard-8up'?8:sheet==='chalkpit-cassette-4up'?4:sheet.startsWith('12up')?12:['2up','cd-2up','cd-letter-2up'].includes(sheet)?2:1;
+ const panels=isCDMode(mode)&&mode!=='cd-label'?cdPanelRects(p,mode==='cd-insert'?'cdFront':'cdTray'):[];
+ const cd=mode==='cd-label'?{...cdLabelGeometry(p)}:isCDMode(mode)?{panels:panels.map(({w})=>w),folds:panels.slice(1).map(({x})=>x),spines:mode==='cd-tray'?panels.filter(panel=>panel.index!==2).map(({w})=>w):[]}:null;
+ return {title:maxText(p.title||p.data.album||'Проект'),artist:maxText(p.data.artist,120),album:maxText(p.data.album,120),mode,cd,printArea:p.layout.printArea||'label',finished:{w:finished.w,h:finished.h},page,pageCount,surfaces,layout:sheets[sheet]||sheets.auto,paper:production?sheets[sheet]:(sizes[paper]||sizes.custom),production,copiesPerPage,copies:Math.max(1,Math.min(30,Math.floor(Number(copies)||1))),bleed:Number(bleed)||0,dpi:Number(dpi)||300,duplex:['jcard','cd-insert','cd-tray'].includes(mode)&&surfaces.length>1,duplexFlip,url:includeQr?qrLink(p,shareUrl):'',linkKind:shareUrl?'Дизайн / ссылка':'Альбом / плейлист'};
 }
 function qrSvg(url,x,y,w){
  const qr=QRCode.create(url,{errorCorrectionLevel:'M'}),count=qr.modules.size;
@@ -50,8 +61,9 @@ export function printShopLetter(p,options={}){
  let y=43;for(const line of wrap(details.title,65)){body+=text(line,18,y,4.6,true);y+=6}
  if(details.artist||details.album){for(const line of wrap([details.artist,details.album].filter(Boolean).join(' — '),80)){body+=text(line,18,y);y+=5}}
  y+=7;const rows=[
- ['Макет',details.mode==='jcard'?'J-card · кассетный вкладыш':details.printArea==='full'?'Cassette · весь корпус':details.printArea==='body'?'Cassette · печать на корпусе':'Cassette · наклейки'],
+ ['Макет',isCDMode(details.mode)?modeTitle(details.mode):details.mode==='jcard'?'J-card · кассетный вкладыш':details.printArea==='full'?'Cassette · весь корпус':details.printArea==='body'?'Cassette · печать на корпусе':'Cassette · наклейки'],
  ['Готовый размер',`${formatNumber(details.finished.w)} × ${formatNumber(details.finished.h)} мм`],
+ ...(details.mode==='cd-label'?[['Диаметр рисунка',`Ø ${formatNumber(details.cd.outerDiameter)} мм`],['Отверстие',`Ø ${formatNumber(details.cd.holeDiameter)} мм`]]:details.cd?[['Панели',details.cd.panels.map(width=>formatNumber(width)+' мм').join(' + ')],...(details.cd.spines.length?[['Корешки',details.cd.spines.map(width=>formatNumber(width)+' мм').join(' + ')]]:[]),...(details.cd.folds.length?[['Сгибы от левого края',details.cd.folds.map(x=>formatNumber(x)+' мм').join(' / ')]]:[])]:[]),
  ['Лист',`${formatNumber(details.page.w)} × ${formatNumber(details.page.h)} мм`],
  ['Раскладка',details.layout],
  ['Страниц в файле',String(details.pageCount)],

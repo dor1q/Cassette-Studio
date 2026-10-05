@@ -1,3 +1,4 @@
+import {modeTitle,modeDefaultSurface} from '../src/media-formats.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -25,7 +26,7 @@ const imageBytes=url=>'data:image/png;base64,'+Buffer.from(url).toString('base64
 const reference=(params={},kind='jcard')=>'https://vhs.texs.org/en/'+kind+'?'+new URLSearchParams({id:'sa.'+spotifyId,musicArtist:'Reference artist',musicAlbum:'Reference album',bg:'131139',color:'ffcc33',mp:'_',country:'gb',...params});
 
 function harness(initial=createProject(),{service,fontLoad=async()=>{},restoreFonts=async()=>({restored:0,missing:[]})}={}){
- const calls={requests:[],assets:[],restoreFonts:[],fontLoads:[],history:[],saved:[],full:[],storage:[],toasts:[],closed:0},faces=new Set(),inputs={modal:{close:()=>calls.closed++},searchResults:{hidden:false}};
+ const calls={requests:[],assets:[],decalSurfaces:[],restoreFonts:[],fontLoads:[],history:[],saved:[],full:[],storage:[],toasts:[],closed:0},faces=new Set(),inputs={modal:{close:()=>calls.closed++},searchResults:{hidden:false}};
  const request=async path=>{
   calls.requests.push(path);if(service)return service(path);
   const source=new URL(path,'https://studio.test').searchParams.get('url');
@@ -39,10 +40,10 @@ function harness(initial=createProject(),{service,fontLoad=async()=>{},restoreFo
  class Image {naturalWidth=600;naturalHeight=600;async decode(){}}
  const document={fonts:{add:font=>faces.add(font),delete:font=>faces.delete(font)}};
  const asset=name=>async()=>{calls.assets.push(name);return {restored:0,missing:0,warnings:[]}};
- const boundaries={restoreReferenceCover:async()=>{calls.assets.push('cover');return {restored:false,handled:false}},restoreReferenceBackgrounds:asset('backgrounds'),restoreReferenceDecals:asset('decals'),restoreReferenceExtras:asset('extras'),restoreReferenceLogo:asset('logo'),
+ const boundaries={restoreReferenceCover:async()=>{calls.assets.push('cover');return {restored:false,handled:false}},restoreReferenceBackgrounds:asset('backgrounds'),restoreReferenceDecals:async(project,params,api,decode,surface)=>{calls.assets.push('decals');calls.decalSurfaces.push(surface);return {restored:0,missing:0,warnings:[]}},restoreReferenceExtras:asset('extras'),restoreReferenceLogo:asset('logo'),
   restoreReferenceFonts:async(project,api)=>{calls.restoreFonts.push(project);return restoreFonts(project,api)},
   restoreReferenceMusicArtwork:(project,url,api,mode,previous)=>restoreReferenceMusicArtwork(project,url,api,mode,previous,async()=>({w:600,h:600}))};
- return new Function('initial','calls','inputs','faces','request','FontFace','Image','document','boundaries','clone','migrate','importReference','referenceMode','restoreReferenceSideMusic','restoreReferenceMusicMetadata','albumArtLayer','applyReferenceArtwork','setCassettePrintArea','cassettePrintArea','applyReferenceBlocks',`
+ return new Function('initial','calls','inputs','faces','request','FontFace','Image','document','boundaries','clone','migrate','importReference','referenceMode','restoreReferenceSideMusic','restoreReferenceMusicMetadata','albumArtLayer','applyReferenceArtwork','setCassettePrintArea','cassettePrintArea','applyReferenceBlocks','modeTitle','modeDefaultSurface',`
   let p=initial,projectRevision=0,projectOpenGeneration=0,mode='jcard',surface='outer',bothView=false,selected='keep-selection';
   const $=name=>inputs[name],localStorage={setItem:(key,value)=>calls.storage.push([key,value])},checkpoint=()=>{projectRevision++;calls.history.push(clone(p))},changed=()=>{projectRevision++;calls.saved.push(p)},full=()=>calls.full.push(p),toast=message=>calls.toasts.push(message);
   const {restoreReferenceCover,restoreReferenceBackgrounds,restoreReferenceDecals,restoreReferenceExtras,restoreReferenceLogo,restoreReferenceFonts,restoreReferenceMusicArtwork}=boundaries;
@@ -50,12 +51,21 @@ function harness(initial=createProject(),{service,fontLoad=async()=>{},restoreFo
   ${fontLoader}
   ${handler}
   return {calls,faces,inputs,run:applyReference,replace:project=>p=project,edit:edit=>{edit(p);projectRevision++},state:()=>({p,mode,surface,bothView,selected}),beginProjectOpen,prepareProjectOpen,commitPreparedProject};
- `)(initial,calls,inputs,faces,request,FontFace,Image,document,boundaries,clone,migrate,importReference,referenceMode,restoreReferenceSideMusic,restoreReferenceMusicMetadata,albumArtLayer,applyReferenceArtwork,setCassettePrintArea,cassettePrintArea,applyReferenceBlocks);
+ `)(initial,calls,inputs,faces,request,FontFace,Image,document,boundaries,clone,migrate,importReference,referenceMode,restoreReferenceSideMusic,restoreReferenceMusicMetadata,albumArtLayer,applyReferenceArtwork,setCassettePrintArea,cassettePrintArea,applyReferenceBlocks,modeTitle,modeDefaultSurface);
 }
 const imports=h=>h.calls.requests.filter(path=>path.startsWith('/api/import?')).map(path=>new URL(path,'https://studio.test').searchParams.get('url'));
 function untouched(h,project){
  assert.equal(h.state().p,project);assert.equal(h.state().selected,'keep-selection');assert.equal(h.calls.history.length,0);assert.equal(h.calls.saved.length,0);assert.equal(h.calls.full.length,0);assert.equal(h.calls.storage.length,0);assert.equal(h.calls.closed,0);assert.equal(h.faces.size,0);
 }
+
+test('the actual CD reference opener selects and saves each CD format and targets its decals',async()=>{
+ for(const [route,mode,surface]of [['cd','cd-label','cdLabel'],['cd-insert','cd-insert','cdFront'],['cd-tray','cd-tray','cdTray']]){
+  const h=harness();await h.run(reference({musicA:'First (1:00)|Second (2:00)',musicB:'Third (3:00)',mode:'d3',ds:'1'},route));const state=h.state();
+  assert.equal(state.mode,mode);assert.equal(state.p.editorMode,mode);assert.equal(state.surface,surface);assert.deepEqual(h.calls.decalSurfaces,[surface]);
+  assert.deepEqual([...state.p.data.A,...state.p.data.B].map(track=>track.title),['First','Second','Third']);assert.equal(h.calls.history.length,1);assert.equal(h.calls.saved.length,1);assert.equal(h.calls.full.length,1);
+  assert.match(h.calls.toasts[0],/Открыт CD/);assert.deepEqual(h.calls.storage,[['cassette-mode',mode]]);
+ }
+});
 
 test('the reference open callback keeps explicit A tracks while loading B from its source',async()=>{
  const original=createProject(),before=clone(original),h=harness(original);

@@ -15,6 +15,7 @@
     "server.mjs",
     "decal-catalog.mjs",
     "src/overlay-remix-kit.js",
+    "src/media-formats.js",
     "catalog-match.mjs",
     "google-fonts.mjs",
     "studio-logos.json",

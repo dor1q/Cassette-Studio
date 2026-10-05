@@ -1,5 +1,7 @@
 import {dimensions,panelRects} from './model.js';
 import {cassetteCutPath} from './cassette-template.js';
+import {isCDSurface} from './media-formats.js';
+import {cdCutPath} from './cd-layout.js';
 import {WILD_REMIX_KIT,remixPart} from './overlay-remix-kit.js';
 
 export const REMIX_RENDER_VERSION=1,REMIX_MAX_SIDE=4096,REMIX_MAX_PIXELS=12_000_000;
@@ -7,12 +9,12 @@ const DPI=600,rounded=n=>Math.round(n*1e6)/1e6;
 export function remixSeed(value=1){const n=Number(value);return Number.isFinite(n)?Math.trunc(n)>>>0:1}
 export function remixHash(text){let h=2166136261;for(let i=0;i<text.length;i++)h=Math.imul(h^text.charCodeAt(i),16777619)>>>0;return h.toString(16).padStart(8,'0')}
 export function remixGeometry(project,surface='outer'){
- if(!['outer','inner','labelA','labelB'].includes(surface))throw Error('Неизвестная сторона Remix');
+ if(!['outer','inner','labelA','labelB'].includes(surface)&&!isCDSurface(surface))throw Error('Неизвестная сторона Remix');
  const d=dimensions(project,surface);
  if(!Number.isFinite(d.w)||!Number.isFinite(d.h)||d.w<=0||d.h<=0||d.w>1200||d.h>500)throw Error('Некорректный размер макета Remix');
  const label=surface.startsWith('label');
  const folds=label?[]:panelRects(project,surface).slice(1).map(panel=>[panel.x,0,panel.x,d.h]);
- const outline=label?cassetteCutPath(project.layout):`M0 0H${d.w}V${d.h}H0Z`;
+ const outline=isCDSurface(surface)?cdCutPath(project,surface):label?cassetteCutPath(project.layout):`M0 0H${d.w}V${d.h}H0Z`;
  const result={width:d.w,height:d.h,folds,outline,unit:'mm'};
  result.signature=remixHash(JSON.stringify(result));return result;
 }

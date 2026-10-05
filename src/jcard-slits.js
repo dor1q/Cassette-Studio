@@ -1,7 +1,7 @@
 import {dimensions} from './model.js';
 const unit=25.4/600;
 export function jcardSlitPaths(project,surface){
- const layout=project.layout;if(!layout.backSlits||layout.flapShape!=='extended'||surface.startsWith('label'))return [];
+ const layout=project.layout;if(!layout.backSlits||layout.flapShape!=='extended'||!['outer','inner'].includes(surface))return [];
  const mirrored=surface==='inner',W=dimensions(project,surface).w,flap=layout.flap;
  const cx=(mirrored?W-flap:0)+flap*(mirrored?.5504:.4496);
  return [.2971,.7171].map(y=>{

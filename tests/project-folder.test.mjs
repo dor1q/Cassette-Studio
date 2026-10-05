@@ -18,6 +18,15 @@ async function fixture(t,options){
 const project=()=>({version:2,title:'Альбом',data:{artist:'Crystal Castles',album:'Crystal Castles',A:[{title:'Alice Practice',seconds:101}],B:[]},layout:{panels:3},settings:{bg:'#123456'},surfaces:{outer:[{type:'image',src:'data:image/png;base64,aW1hZ2U='}],inner:[],labelA:[],labelB:[]},uploads:[{src:'data:image/png;base64,aW1hZ2U='}],fonts:[{name:'My Font',data:'data:font/ttf;base64,Zm9udA=='}]});
 const code=value=>error=>error.code===value;
 
+test('folder metadata distinguishes CD modes while retaining every embedded CD face and legacy cassette mode',async t=>{
+ const {store,parent}=await fixture(t);await store.configure(parent);
+ for(const mode of ['cd-label','cd-insert','cd-tray']){
+  const value=project();value.editorMode=mode;value.surfaces.cdLabel=[{type:'image',src:'data:image/png;base64,Y2Q='}];value.surfaces.cdFront=[{type:'text',text:'CD front'}];value.surfaces.cdInside=[{type:'text',text:'CD inside'}];value.surfaces.cdTray=[{type:'text',text:'CD tray'}];value.surfaces.cdTrayInside=[{type:'text',text:'CD tray inside'}];
+  const saved=await store.save({id:mode,project:value});assert.equal(saved.kind,mode);assert.deepEqual((await store.read(saved.id)).project,value);assert.equal((await store.list()).projects.find(record=>record.id===mode).kind,mode);
+ }
+ for(const mode of ['label','cassette-label']){const value=project();value.mode=mode;const saved=await store.save({id:'legacy-'+mode,project:value});assert.equal(saved.kind,'cassette-label');assert.deepEqual((await store.read(saved.id)).project,value)}
+});
+
 test('folder library persists the selected folder and complete embedded project across profiles',async t=>{
  const {store,parent,config,root,directory}=await fixture(t);
  assert.deepEqual(await store.status(),{configured:false,available:false,folderLabel:''});

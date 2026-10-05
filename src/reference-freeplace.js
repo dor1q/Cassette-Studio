@@ -1,11 +1,12 @@
 import {clone,uid,dimensions} from './model.js';
-import {referenceFont,referenceCenterX,REFERENCE_UNIT} from './reference-format.js';
+import {referenceFont,referenceCenterX,REFERENCE_UNIT,referencePixelUnit} from './reference-format.js';
+import {isCDMode} from './media-formats.js';
 import {referenceFlowCopy} from './reference-flow.js';
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const MAX_BUNDLE=30000,MAX_BLOCKS=80,validRef=ref=>typeof ref==='string'&&/^[a-z0-9]+-[a-z0-9]+$/i.test(ref)&&ref.length<=200;
 const validToken=token=>typeof token==='string'&&/^[a-z0-9-]{1,100}$/i.test(token);
 const projectLayers=project=>[...Object.values(project.surfaces||{}).flat(),...(Array.isArray(project.referenceFlowArchive)?project.referenceFlowArchive.slice(0,32):[])];
-const blockSurface=(entry,mode)=>mode==='label'?({A:'labelA',B:'labelB'}[entry.scope]):({default:'outer',sideB:'inner'}[entry.scope]);
+const blockSurface=(entry,mode)=>mode==='cd-label'?undefined:mode==='cd-insert'?({default:'cdFront',inside:'cdInside',sideB:'cdInside'}[entry.scope]):mode==='cd-tray'?({default:'cdTray',inside:'cdTrayInside',sideB:'cdTrayInside'}[entry.scope]):mode==='label'?({A:'labelA',B:'labelB'}[entry.scope]):({default:'outer',sideB:'inner'}[entry.scope]);
 export function parseReferenceBlocks(raw,{includeSuspended=false}={}){
  if(typeof raw!=='string'||!raw||raw.startsWith('~')&&!includeSuspended)return [];
  const seen=new Set();return raw.slice(0,MAX_BUNDLE).split('|').filter(part=>part!=='~').slice(0,MAX_BLOCKS).map(part=>{
@@ -33,6 +34,9 @@ export function referenceBlockStyle(bundle,pixelUnit){
  return out;
 }
 function matches(layer,key,project){
+ if(layer.referenceBlockKey===key)return true;
+ if(isCDMode(project.editorMode)&&key==='tracklist')return layer.source==='cdTracks'||layer.source==='cdContents';
+ if(isCDMode(project.editorMode)&&/^inside\d+$/.test(key))return layer.referenceCDContent&&layer.cdContentIndex===Number(key.slice(6))-1;
  const source={artist:'artist',album:'album',spineText:'spine',spineLogo:'referenceSpineLogo',logo:'referenceLogo',flapTracks:'flapTracks',flapProd:'flapProduction',stereo:'stereo',side:'side',production:'production',tracklist:'tracks'}[key];
  if(/^inside\d+$/.test(key))return layer.source==='referenceContents'&&Math.floor((layer.insideIndex??layer.flowIndex)/project.layout.columns)+1===Number(key.slice(6));
  return source&&layer.source===source;
@@ -41,7 +45,7 @@ export function sanitizeReferenceFreePlace(project){
  const state=project.referenceFreePlace;if(!state||typeof state!=='object'||Array.isArray(state)){delete project.referenceFreePlace;for(const layer of projectLayers(project)){delete layer.referenceSuspendedBlock;delete layer.referenceFreePlaceToken}return project}
  const raw=typeof state.raw==='string'?state.raw.slice(0,MAX_BUNDLE):'',entries=parseReferenceBlocks(raw,{includeSuspended:true}),refs=new Set(entries.map(entry=>entry.ref)),identities=new Set(entries.map(entry=>entry.ref+'*'+entry.copy));
  const appliedKeys=Array.isArray(state.appliedKeys)?[...new Set(state.appliedKeys.filter(key=>typeof key==='string'&&key.length<=220&&/^[a-z0-9]+-[a-z0-9]+\*\d+$/i.test(key)&&(!raw||identities.has(key))))].slice(0,MAX_BLOCKS):[];
- project.referenceFreePlace={raw,mode:state.mode==='label'?'label':'jcard',token:validToken(state.token)?state.token:'',applied:appliedKeys.length,appliedKeys,unsupported:Array.isArray(state.unsupported)?[...new Set(state.unsupported.filter(validRef))].slice(0,MAX_BLOCKS):[],suspended:raw.startsWith('~')&&entries.length>0};
+ project.referenceFreePlace={raw,mode:isCDMode(state.mode)?state.mode:state.mode==='label'?'label':'jcard',token:validToken(state.token)?state.token:'',applied:appliedKeys.length,appliedKeys,unsupported:Array.isArray(state.unsupported)?[...new Set(state.unsupported.filter(validRef))].slice(0,MAX_BLOCKS):[],suspended:raw.startsWith('~')&&entries.length>0};
  for(const layer of projectLayers(project))if(!project.referenceFreePlace.suspended||!project.referenceFreePlace.token||layer.referenceFreePlaceToken!==project.referenceFreePlace.token||!refs.has(layer.referenceSuspendedBlock)){delete layer.referenceSuspendedBlock;delete layer.referenceFreePlaceToken}
  return project;
 }
@@ -67,15 +71,15 @@ export function applyReferenceBlocks(project,params,mode='jcard',{pending=false,
   const layers=project.surfaces[surface],original=baselines.get(surface+'|'+entry.ref)||[];
   if(!original.length){unsupported.push(entry.ref);continue}
   const targets=entry.copy>1?original.map(l=>({...referenceFlowCopy(l),id:uid(),name:l.name+' · копия '+entry.copy,referenceBlockCopy:entry.copy})):original.map(l=>layers.find(t=>t.id===l.id));
-  const W=dimensions(project,surface).w,H=dimensions(project,surface).h,baseWidth=mode==='label'?W:406.4,scale=entry.scale/100;
+  const W=dimensions(project,surface).w,H=dimensions(project,surface).h,baseWidth=mode==='label'||mode==='cd-tray'?W:mode==='cd-insert'?8476*REFERENCE_UNIT:406.4,scale=entry.scale/100;
   const points=original.flatMap(l=>{const r=l.rotation*Math.PI/180;return [[0,0],[l.w,0],[0,l.h],[l.w,l.h]].map(([x,y])=>[l.x+x*Math.cos(r)-y*Math.sin(r),l.y+x*Math.sin(r)+y*Math.cos(r)])});
   const left=Math.min(...points.map(p=>p[0])),right=Math.max(...points.map(p=>p[0])),top=Math.min(...points.map(p=>p[1])),bottom=Math.max(...points.map(p=>p[1]));
   const width=baseWidth*entry.w/100*scale,factor=width/Math.max(.1,right-left),verticalScale=original.every(l=>l.type==='image')?factor:scale,height=(bottom-top)*verticalScale,angle=entry.rotation*Math.PI/180;
-  const cx=mode==='label'?W*entry.x/100:referenceCenterX(project,entry.x),cy=H*entry.y/100;
+  const cdX=baseWidth*entry.x/100-(mode==='cd-insert'&&surface==='cdFront'?baseWidth-W:0),cx=isCDMode(mode)?mode==='cd-insert'?clamp(cdX,W*.02,W*.98):cdX:mode==='label'?W*entry.x/100:referenceCenterX(project,entry.x),cy=H*entry.y/100;
   const baseX=cx-width/2*Math.cos(angle)+height/2*Math.sin(angle),baseY=cy-width/2*Math.sin(angle)-height/2*Math.cos(angle);
   for(let i=0;i<targets.length;i++){
    const layer=targets[i],originalLayer=original[i],dx=(originalLayer.x-left)*factor,dy=(originalLayer.y-top)*verticalScale,r=originalLayer.rotation*Math.PI/180,vx=originalLayer.w*Math.cos(r)*factor,vy=originalLayer.w*Math.sin(r)*verticalScale,hx=-originalLayer.h*Math.sin(r)*factor,hy=originalLayer.h*Math.cos(r)*verticalScale;
-   const style=referenceBlockStyle(entry.style,mode==='label'?25.4/72:REFERENCE_UNIT);
+   const style=referenceBlockStyle(entry.style,referencePixelUnit(mode));
    Object.assign(layer,{x:baseX+dx*Math.cos(angle)-dy*Math.sin(angle),y:baseY+dx*Math.sin(angle)+dy*Math.cos(angle),w:Math.hypot(vx,vy),h:Math.hypot(hx,hy),size:originalLayer.size*scale,rotation:Math.atan2(vy,vx)*180/Math.PI+entry.rotation,visible:originalLayer.visible&&!entry.hidden,locked:entry.locked,referenceBlock:entry.ref},style);
    if(style.color)layer.referenceOwnColor=true;
   }

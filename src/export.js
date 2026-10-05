@@ -4,10 +4,29 @@ import {jsPDF} from 'jspdf';
 import {renderSvg} from './render.js';
 import {isProductionSheet,productionPages,PRODUCTION_BLEED} from './production-print.js';
 import {printShopLetter} from './print-shop-letter.js';
+import {normalizeEditorMode,isCDMode,modeSurfaces,modeDefaultSurface} from './media-formats.js';
 
 export function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),15000)}
-export async function raster(svg,w,h,dpi=300){await document.fonts.ready;const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}));try{const img=new Image();await new Promise((yes,no)=>{img.onload=yes;img.onerror=()=>no(Error('Не удалось отрисовать изображение'));img.src=url});const c=document.createElement('canvas');c.width=Math.round(w/25.4*dpi);c.height=Math.round(h/25.4*dpi);if(c.width*c.height>65000000)throw Error('Слишком большой макет. Уменьшите dpi.');c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c}finally{URL.revokeObjectURL(url)}}
-export function surfaceSet(p,mode,surface,selection){if(selection==='current')return [surface];return mode==='label'?['labelA','labelB']:p.layout.double?['outer','inner']:['outer']}
+export async function raster(svg,w,h,dpi=300){await document.fonts.ready;const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}));try{const img=new Image();await new Promise((yes,no)=>{img.onload=yes;img.onerror=()=>no(Error('Не удалось отрисовать изображение'));img.src=url});const c=document.createElement('canvas');c.width=Math.round(w/25.4*dpi);c.height=Math.round(h/25.4*dpi);if(c.width*c.height>75000000)throw Error('Слишком большой макет. Уменьшите dpi.');c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c}finally{URL.revokeObjectURL(url)}}
+export function surfaceSet(p,mode=p.editorMode??p.mode,surface,selection='all'){
+ mode=normalizeEditorMode(mode);const allowed=modeSurfaces(p,mode);
+ if(selection==='current'){
+  const chosen=surface||modeDefaultSurface(mode);if(!allowed.includes(chosen))throw Error('Выбранная сторона не относится к этому макету.');return [chosen];
+ }
+ if(mode==='jcard'&&!p.layout.double)return ['outer'];
+ if(mode==='cd-insert'&&p.layout.cdInsertDouble!==true)return ['cdFront'];
+ if(mode==='cd-tray'&&p.layout.cdTrayDouble!==true)return ['cdTray'];
+ return allowed;
+}
+function exportOptions(p,options){
+ const mode=normalizeEditorMode(options.mode??p.editorMode??p.mode);
+ const opts={format:'pdf',surface:modeDefaultSurface(mode),selection:'all',blank:false,bleed:0,dpi:isCDMode(mode)?600:300,paper:'a4',copies:1,guides:false,sheet:'auto',offsetX:0,offsetY:0,duplexFlip:'long',...options,mode};
+ if(isCDMode(mode)&&isProductionSheet(opts.sheet))throw Error('Производственные шаблоны кассет не подходят для CD. Выберите обычную раскладку CD.');
+ if(['12up','12up-trim'].includes(opts.sheet)&&mode!=='label')throw Error('Раскладка на 12 наклеек предназначена для кассет.');
+ if(['cd-2up','cd-letter-2up'].includes(opts.sheet)&&mode!=='cd-label')throw Error('Раскладка на два диска предназначена для CD Label.');
+ if(opts.sheet==='cd-letter-2up'){opts.paper='letter';opts.bleed=0;opts.dpi=600;if(Number(opts.offsetX)||Number(opts.offsetY))throw Error('В шаблоне OL1200 / Avery 8692 позиции фиксированы. Уберите сдвиг печати.')}
+ return opts;
+}
 
 // PDF and image sheet exports use the same millimetre positions and clipping.
 export function composePrintSheetSvg(items,page,w,h){
@@ -28,7 +47,7 @@ export function orientedPageSvg(page){
  return `${match[1]}<g transform="rotate(${page.rotation} ${viewBox[0]+viewBox[2]/2} ${viewBox[1]+viewBox[3]/2})">${match[2]}</g></svg>`;
 }
 export function prepareExport(p,options={}){
- const opts={format:'pdf',mode:'jcard',surface:'outer',selection:'all',blank:false,bleed:0,dpi:300,paper:'a4',copies:1,guides:false,sheet:'auto',offsetX:0,offsetY:0,duplexFlip:'long',...options};
+ const opts=exportOptions(p,options);
  const production=isProductionSheet(opts.sheet),trimmed=opts.sheet==='12up-trim';
  if(trimmed){opts.sheet='12up';opts.bleed=0}
  if(opts.mode==='label'&&['body','full'].includes(p.layout.printArea))opts.bleed=0;
@@ -62,7 +81,7 @@ export async function pngWithDpi(blob,dpi){
 async function canvasPng(canvas,dpi){const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('Не удалось сохранить PNG.');return pngWithDpi(blob,dpi)}
 
 export async function exportProject(p,options={}){
- const opts={format:'pdf',mode:'jcard',surface:'outer',selection:'all',blank:false,bleed:0,dpi:300,paper:'a4',copies:1,guides:false,sheet:'auto',offsetX:0,offsetY:0,duplexFlip:'long',shareUrl:'',includeQr:true,...options},name=(p.title||p.data.album||'cassette').replace(/[<>:"/\\|?*]/g,'-');
+ const opts=exportOptions(p,{shareUrl:'',includeQr:true,...options}),name=(p.title||p.data.album||'cassette').replace(/[<>:"/\\|?*]/g,'-');
  if(opts.format==='printshop'){
   const r=printShopLetter(p,opts),canvas=await raster(r.svg,r.w,r.h,150),doc=new jsPDF({unit:'mm',format:[r.w,r.h],orientation:'portrait',compress:true});doc.addImage(canvas.toDataURL('image/png'),'PNG',0,0,r.w,r.h,undefined,'FAST');doc.setProperties({title:p.title,subject:'Cassette Studio — print specifications'});download(doc.output('blob'),`${name}-print-specs.pdf`);return;
  }

@@ -1,5 +1,5 @@
 import {makeLayer,dimensions,panelRects} from './model.js';
-import {albumArtLayer,fitCoverImage} from './album-art.js';
+import {albumArtLayer,fitCoverImage,albumCoverFrame} from './album-art.js';
 import {loadReferenceImage} from './reference-image-source.js';
 import {coverChoices,audioBackgroundChoices} from './cover-choices.js';
 import {recordLabelMetadata} from '../music-labels.mjs';
@@ -28,8 +28,8 @@ export function applyGalleryCover(project,surface,choice,loaded){
  let layer=albumArtLayer(project,surface);
  if(layer?.locked)throw Error('Обложка закреплена. Сначала снимите закрепление.');
  if(!layer){
-  const size=dimensions(project,surface),label=surface.startsWith('label'),front=label?null:panelRects(project,surface).find(p=>p.index===2);
-  layer=makeLayer('image',{name:'Обложка альбома',category:'albumCover',x:front?.x||0,y:0,w:front?.w||size.w,h:size.h,opacity:label?.5:1});
+  const label=surface.startsWith('label');
+  layer=makeLayer('image',{name:'Обложка альбома',category:'albumCover',...albumCoverFrame(project,surface),opacity:label?.5:1});
   const list=project.surfaces[surface],index=list.findIndex(l=>l.category!=='background'&&l.referenceDecalLayer!=='background');list.splice(index<0?list.length:index,0,layer);
  }
  Object.assign(layer,{src:loaded.src,referenceAssetKey:loaded.key,referenceCoverIndex:choice.index,missingReference:false});fitCoverImage(layer);

@@ -39,7 +39,19 @@ export function referenceSynced(params){
  const backgroundMasks=[...(String(params.get('bg')||'').split('.')[1]||params.get('cb')?[params.get('bgp')]:[]),...String(params.get('bgl')||'').split('|').map(item=>item.split('_')[0])],separateBackground=backgroundMasks.some(mask=>/^[a-z0-9]+$/i.test(mask||'')&&[1,2].includes(parseInt(mask,36)&3));
  return !(backDecal||backText||backCustom||separateBackground||['bp','qr','sc'].some(key=>String(params.get(key)||'').split('|').some(t=>t.startsWith('b~'))));
 }
-export function referenceSurface(project,mode,side){return mode==='label'?(side==='back'?'labelB':'labelA'):(project.layout.double&&side==='back'?'inner':'outer')}
+export function referenceSurfaces(project,mode=project.editorMode,{active=false}={}){
+ if(mode==='cd-label')return ['cdLabel'];
+ if(mode==='cd-insert')return active&&!project.layout.cdInsertDouble?['cdFront']:['cdFront','cdInside'];
+ if(mode==='cd-tray')return active&&!project.layout.cdTrayDouble?['cdTray']:['cdTray','cdTrayInside'];
+ return mode==='label'?['labelA','labelB']:active&&!project.layout.double?['outer']:['outer','inner'];
+}
+export function referenceCoverSurfaces(mode){return mode==='cd-label'?['cdLabel']:mode==='cd-insert'?['cdFront']:mode==='cd-tray'?['cdTray']:mode==='label'?['labelA','labelB']:['outer']}
+export function referenceSurface(project,mode,side){
+ if(mode!=='label'&&!['cd-label','cd-insert','cd-tray'].includes(mode))return project.layout.double&&side==='back'?'inner':'outer';
+ const surfaces=referenceSurfaces(project,mode);return surfaces[side==='back'&&surfaces.length>1?1:0];
+}
+export function referencePixelUnit(mode){return mode==='label'||mode==='cd-label'?25.4/72:REFERENCE_UNIT}
+export function referenceCodeUnit(project,mode){return mode==='label'?.13*project.layout.labelW/251.16:mode==='cd-label'?.18*25.4/72:REFERENCE_UNIT}
 export function referencePlacement(raw){
  const side=raw?.startsWith('b~')?'back':'front',parts=String(raw||'').replace(/^b~/,'').split('_');
  if(parts.length<4)return null;const [x,y,scale,rotation]=parts.slice(0,4).map(Number);

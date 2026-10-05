@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createProject,makeLayer,clone,dimensions,panelRects,importReference} from '../src/model.js';
-import {albumArtLayer,fitCoverImage} from '../src/album-art.js';
+import {albumCoverFrame,albumArtLayer,fitCoverImage} from '../src/album-art.js';
 import {captureImageImportTarget,assertImageImportTarget} from '../src/image-import-target.js';
 import {synchronizeLabelLayers} from '../src/label-sync.js';
 
@@ -19,14 +19,14 @@ function harness(initial=fixture(),{surface='outer',mode='jcard',bitmapDecode=as
  const createImageBitmap=async f=>{await bitmapDecode(f);return {width:f.width||800,height:f.height||600,src:f.src,close:()=>calls.closed++}};
  class Image {naturalWidth=800;naturalHeight=600;async decode(){await backgroundDecode(this.src)}}
  const document={createElement:()=>{const canvas={getContext:()=>({drawImage:bmp=>{if(drawError)throw Error('Cannot draw');canvas.src=bmp.src}}),toDataURL:()=>{calls.rasters.push({w:canvas.width,h:canvas.height});return canvas.src}};return canvas}};
- return new Function('initial','initialSurface','initialMode','calls','$','document','createImageBitmap','Image','request','clone','dimensions','panelRects','makeLayer','albumArtLayer','fitCoverImage','captureImageImportTarget','assertImageImportTarget','synchronizeLabelLayers',`
+ return new Function('initial','initialSurface','initialMode','calls','$','document','createImageBitmap','Image','request','clone','dimensions','panelRects','makeLayer','albumCoverFrame','albumArtLayer','fitCoverImage','captureImageImportTarget','assertImageImportTarget','synchronizeLabelLayers',`
   let p=initial,surface=initialSurface,mode=initialMode,selected=p.surfaces[surface][0]?.id||'',tab='background',uploadKind='art',imageUploadTarget=null,projectRevision=0;
   const layers=()=>p.surfaces[surface],checkpoint=()=>{calls.history.push(clone(p));projectRevision++};
   const changed=({mirrorLayers}={})=>{projectRevision++;if(mirrorLayers)synchronizeLabelLayers(p,surface);calls.saved.push(clone(p))};
   const toast=message=>calls.toasts.push(message);
   ${controller}
   return {calls,begin:beginImageUpload,upload:f=>$('imageFile').onchange({target:{files:[f],value:'file'}}),place:placeImage,use:useAlbumCover,decode:imageData,state:()=>({p,surface,mode,selected}),select:id=>selected=id,edit:fn=>{fn(p);projectRevision++},replace:next=>p=next,side:next=>surface=next,undo:()=>p=calls.history.pop()};
- `)(initial,surface,mode,calls,$,document,createImageBitmap,Image,async url=>{calls.requests.push(url);return request(url)},clone,dimensions,panelRects,makeLayer,albumArtLayer,fitCoverImage,captureImageImportTarget,assertImageImportTarget,synchronizeLabelLayers);
+ `)(initial,surface,mode,calls,$,document,createImageBitmap,Image,async url=>{calls.requests.push(url);return request(url)},clone,dimensions,panelRects,makeLayer,albumCoverFrame,albumArtLayer,fitCoverImage,captureImageImportTarget,assertImageImportTarget,synchronizeLabelLayers);
 }
 
 test('actual replacement follows the layer selected when the picker opened and needs one undo',async()=>{

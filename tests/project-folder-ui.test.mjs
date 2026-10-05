@@ -27,6 +27,14 @@ test('folder session saves artwork with a stable record and resumes its revision
  assert.equal(f.requests[1].project.surfaces.labelA.at(-1).src,'data:image/png;base64,AAAA');assert.equal(f.requests[1].project.fonts.at(-1).data,'data:font/woff2;base64,AAAA');
 });
 
+test('folder sessions preserve CD mode and all faces even when getMode is omitted',async()=>{
+ for(const mode of ['cd-label','cd-insert','cd-tray']){
+  const f=fixture();f.project.editorMode=mode;f.project.surfaces.cdFront=[{type:'text',text:'CD front'}];f.project.surfaces.cdInside=[{type:'text',text:'CD inside'}];
+  const session=createFolderSession({bridge:f.bridge,storage:f.storage,getProject:()=>f.project});await session.save();
+  assert.equal(f.requests[0].project.editorMode,mode);assert.equal(f.requests[0].project.mode,mode);assert.deepEqual(f.requests[0].project.surfaces.cdFront,f.project.surfaces.cdFront);assert.deepEqual(f.requests[0].project.surfaces.cdInside,f.project.surfaces.cdInside);
+ }
+});
+
 test('copy is a new cloud record, and switching folders never submits an old revision',async()=>{
  const f=fixture(),session=f.session(),first=await session.save(),original=f.project.libraryId;
  const copied=await session.save({copy:true});assert.notEqual(copied.record.id,first.record.id);assert.notEqual(f.project.libraryId,original);assert.equal(f.requests[1].expectedRevision,undefined);

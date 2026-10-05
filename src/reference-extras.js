@@ -1,5 +1,5 @@
 import {clone,uid,makeLayer,dimensions,referencePosition} from './model.js';
-import {referencePlacement,referenceSurface,REFERENCE_UNIT} from './reference-format.js';
+import {referencePlacement,referenceSurface,referenceSurfaces,referenceCodeUnit} from './reference-format.js';
 import {prepareRemix,normalizeRemixParts} from './overlay-remix.js';
 import {remixGeometry,remixSeed} from './overlay-remix-plan.js';
 export function spotifyCodeUrl(params){
@@ -18,7 +18,7 @@ export function parseReferenceOverlays(raw,mode='jcard'){
  }).filter(Boolean);
 }
 export async function restoreReferenceExtras(project,params,request,mode='jcard',cached=[],options={}){
- let restored=0,missing=0;const surfaces=mode==='label'?['labelA','labelB']:project.layout.double?['outer','inner']:['outer'];
+ let restored=0,missing=0;const surfaces=referenceSurfaces(project,mode,{active:true});
  const overlays=parseReferenceOverlays(params.get('ol'),mode);
  for(const overlay of overlays){
   const key='overlay:'+overlay.id+':'+(overlay.id==='custom'?params.get('col')||'':overlay.seed);
@@ -51,7 +51,7 @@ export async function restoreReferenceExtras(project,params,request,mode='jcard'
  if(code&&placements.length){
   let src=cached.find(l=>l.referenceAssetKey===code&&l.src)?.src;
   try{src||=(await request('/api/image?url='+encodeURIComponent(code))).src;if(!src)throw Error('Нет кода');
-   for(const t of placements){const surface=referenceSurface(project,mode,t.side),unit=mode==='label'?.13*project.layout.labelW/251.16:REFERENCE_UNIT,w=280*unit*t.scale/100,h=70*unit*t.scale/100,layer=makeLayer('image',{name:'Spotify Code',category:'spotifyCode',referenceAssetKey:code,src,...referencePosition(project,t.x,t.y,w,h,t.rotation,surface),w,h,rotation:t.rotation,fit:'stretch'});project.surfaces[surface].push(layer);if(mode==='label'&&project.layout.sync)project.surfaces[surface==='labelA'?'labelB':'labelA'].push({...clone(layer),id:uid()})}
+   for(const t of placements){const surface=referenceSurface(project,mode,t.side),unit=referenceCodeUnit(project,mode),w=280*unit*t.scale/100,h=70*unit*t.scale/100,layer=makeLayer('image',{name:'Spotify Code',category:'spotifyCode',referenceAssetKey:code,src,...referencePosition(project,t.x,t.y,w,h,t.rotation,surface,mode!=='cd-insert'),w,h,rotation:t.rotation,fit:'stretch'});project.surfaces[surface].push(layer);if(mode==='label'&&project.layout.sync)project.surfaces[surface==='labelA'?'labelB':'labelA'].push({...clone(layer),id:uid()})}
    restored+=placements.length;
   }catch{missing+=placements.length}
  }

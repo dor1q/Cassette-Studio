@@ -1,20 +1,33 @@
 // All coordinates are millimetres; PDF and browser printing share this plan.
 export function printLayout(items,{mode='jcard',paper='a4',copies=1,bleed=0,sheet='auto',offsetX=0,offsetY=0,duplexFlip='long'}={}){
+ if(!items.length)throw Error('Нет макетов для печати.');
+ if(sheet==='12up'&&mode!=='label')throw Error('Раскладка на 12 наклеек предназначена для кассет.');
+ if(['cd-2up','cd-letter-2up'].includes(sheet)&&mode!=='cd-label')throw Error('Раскладка на два диска предназначена для CD Label.');
+ const folded=['jcard','cd-insert','cd-tray'].includes(mode),discPair=mode==='cd-label'&&sheet==='cd-2up';
  const sizes={a4:[210,297],letter:[215.9,279.4],a3:[297,420],legal:[215.9,355.6],tabloid:[279.4,431.8]};
  let [w,h]=sizes[paper]||[Math.max(...items.map(i=>i.w))+20,Math.max(...items.map(i=>i.h))+20];
  if(sheet==='12up'&&mode==='label')[w,h]=sizes.letter;
- if(mode==='jcard'&&items[0].w>w-20&&items[0].w<=h-20)[w,h]=[h,w];
+ if(sheet==='cd-letter-2up')[w,h]=sizes.letter;
+ if(folded&&items[0].w>w-20&&items[0].w<=h-20)[w,h]=[h,w];
  const pages=[[]];const add=(item,x,y,rotation=0,clip)=>pages.at(-1).push({item,x:x+Number(offsetX),y:y+Number(offsetY),rotation,...(clip?{clip:{...clip,x:clip.x+Number(offsetX),y:clip.y+Number(offsetY)}}:{})});
  copies=Math.max(1,Math.min(30,Math.floor(Number(copies)||1)));
- if(mode==='jcard'){
-  const slots=sheet==='2up'?2:1;
+ if(sheet==='cd-letter-2up'){
+  if(Number(offsetX)||Number(offsetY))throw Error('В шаблоне OL1200 / Avery 8692 позиции фиксированы. Уберите сдвиг печати.');
+  const unit=25.4/600,frame=2837*unit;
+  if(bleed||items.some(item=>Math.abs(item.w-frame)>.05||Math.abs(item.h-frame)>.05))throw Error('Для OL1200 / Avery 8692 используйте стандартный CD Label без дополнительных вылетов.');
+  const centres=[[2550,1648],[2550,4935]];
+  for(let n=0;n<copies*items.length;n++){
+   const slot=n%2;if(n&&slot===0)pages.push([]);const item=n%items.length,r=items[item],[cx,cy]=centres[slot];add(item,cx*unit-r.w/2,cy*unit-r.h/2);
+  }
+ }else if(folded||discPair){
+  const slots=sheet==='2up'||discPair?2:1;
   for(let c=0;c<copies;c+=slots)for(let i=0;i<items.length;i++){
    const r=items[i];if(r.w>w-20||r.h>h-20)throw Error('Макет не помещается на лист. Выберите лист по размеру макета.');
-   if(slots===2&&r.h*2+10>h-20)throw Error('Два вкладыша не помещаются на лист. Выберите больший лист или одну копию на страницу.');
+   if(slots===2&&r.h*2+10>h-20)throw Error('Два макета не помещаются на лист. Выберите больший лист или одну копию на страницу.');
    if(pages.at(-1).length)pages.push([]);
    // Exporting the current inside still needs the same binding-edge rotation
    // as the inside of a complete pair. Unnamed legacy items retain pair order.
-   const reverse=r.s==='inner'||(!r.s&&i%2===1);
+   const reverse=r.s==='inner'||r.s==='cdInside'||r.s==='cdTrayInside'||(folded&&!r.s&&i%2===1);
    const rotate=reverse&&((w>h&&duplexFlip==='long')||(w<=h&&duplexFlip==='short'));
    for(let slot=0;slot<Math.min(slots,copies-c);slot++){
     const y=slots===1?(h-r.h)/2:(h-2*r.h-10)/2+slot*(r.h+10);

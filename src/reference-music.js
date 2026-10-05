@@ -6,6 +6,9 @@ import {loadReferenceImage} from './reference-image-source.js';
 import {recordLabelMetadata} from '../music-labels.mjs';
 import {musicGalleryScope} from './music-gallery-scope.js';
 import {referenceMusicSource,mergeReferenceSidePosters,referenceSidePosters} from './reference-side-music.js';
+import {referenceCoverSurfaces} from './reference-format.js';
+import {isCDMode} from './media-formats.js';
+import {uid} from './model.js';
 
 export function referenceMusicUrl(params){
  const supplied=params.get('playlistUrl');
@@ -21,20 +24,29 @@ export function referenceMusicGalleryScope(params){
 }
 
 export async function restoreReferenceMusicMetadata(project,url,request,previous=project){
- const musicUrl=referenceMusicUrl(url.searchParams);
+ const params=url.searchParams,musicUrl=referenceMusicUrl(params),cd=isCDMode(project.editorMode);
  const hasSides=referenceSidePosters(project).length>0;
  if(!musicUrl&&!hasSides)return {album:null,musicUrl,choices:[],backgroundChoices:[],cached:false};
- const reusable=musicUrl?[project,previous].find(candidate=>candidate.referenceMusicMetadataSource===musicUrl&&candidate.referenceMusicMetadata):null;
+ const reusable=musicUrl?[project,previous].find(candidate=>candidate.referenceMusicMetadataSource===musicUrl&&candidate.referenceMusicMetadata&&(!cd||candidate.referenceMusicMetadata.referenceFullTracks)):null;
  const imported=musicUrl?(reusable?.referenceMusicMetadata||await request('/api/import?url='+encodeURIComponent(musicUrl))):{cover:'',url:'',customPosters:[],tracks:[]};
  // Keep only artwork metadata needed to restore galleries, never session or service-connection data.
  const normalized=coverChoices(imported);
  const album=mergeReferenceSidePosters(project,{cover:normalized[0].file_path||'',coverAlternatives:[...(imported.coverAlternatives||[])],url:imported.url||musicUrl,
   customPosters:normalized.slice(1).map(({index,...poster})=>poster),
   ...recordLabelMetadata(imported.recordLabels,imported.recordLabelSource),
-  tracks:Array.isArray(imported.tracks)?imported.tracks.map(track=>({title:track.title||track.trackName||'',thumbnail:track.thumbnail||'',thumbnailWidth:track.thumbnailWidth,thumbnailHeight:track.thumbnailHeight})):[]});
+  ...(cd&&musicUrl?{referenceFullTracks:true,artist:String(imported.artist||imported.artistName||'').slice(0,500),album:String(imported.album||imported.collectionName||'').slice(0,1000),production:String(imported.production||imported.note||'').slice(0,100000)}:{}),
+  tracks:Array.isArray(imported.tracks)?imported.tracks.slice(0,2000).map(track=>({title:String(track.title||track.trackName||'').slice(0,1000),thumbnail:track.thumbnail||'',thumbnailWidth:track.thumbnailWidth,thumbnailHeight:track.thumbnailHeight,...(cd?{artist:String(track.artist||'').slice(0,500),seconds:Math.max(0,Math.min(86400,Math.round(Number(track.seconds)||0)))}:{})})):[]});
  const options={cp:url.searchParams.get('cp')||''},selection=selectCoverChoice(album,url.searchParams,options),backgroundChoices=audioBackgroundChoices(album,options);
  project.referenceMusicMetadataSource=musicUrl;project.referenceMusicMetadata=album;
  if(musicUrl)Object.assign(project.data,recordLabelMetadata(album.recordLabels,album.recordLabelSource));
+ if(cd&&musicUrl){
+  if(!params.has('musicArtist'))project.data.artist=album.artist||'';
+  if(!params.has('musicAlbum'))project.data.album=album.album||'';
+  if(!params.has('musicProd')&&!params.has('musicPL'))project.data.production=album.production||'';
+  if(!['musicA','musicB','sai','sbi'].some(key=>params.has(key))) {
+   project.data.A=album.tracks.filter(track=>track.title.trim()).map(track=>({id:uid(),title:track.title,artist:track.artist,seconds:track.seconds}));project.data.B=[];
+  }
+ }
  project.referenceCoverChoices=selection.choices;project.referenceBackgroundChoices=backgroundChoices;
  project.referenceBackgroundChoicesScope=referenceMusicGalleryScope(url.searchParams);
  return {album,musicUrl,choices:selection.choices,backgroundChoices,cached:!!reusable};
@@ -78,8 +90,8 @@ export async function restoreReferenceMusicArtwork(project,url,request,mode='jca
  }
  if(!artwork)throw Error('Не удалось загрузить обложку');
  const size=await getDimensions(artwork),[w,h]=Array.isArray(size)?size:[size.w,size.h];
- applyAlbumArt(project,artwork,mode==='label'?'A':'both');
- if(mode==='label')applyAlbumArt(project,artwork,'B');
+ if(isCDMode(mode))applyAlbumArt(project,artwork,{surfaces:referenceCoverSurfaces(mode)});
+ else{applyAlbumArt(project,artwork,mode==='label'?'A':'both');if(mode==='label')applyAlbumArt(project,artwork,'B')}
  const upload=project.uploads.find(item=>item.category==='albumCover');
  if(cover&&upload)upload.referenceAssetKey=cover;
  applyReferenceArtwork(project,params,w,h,mode);

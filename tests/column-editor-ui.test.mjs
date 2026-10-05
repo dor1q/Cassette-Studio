@@ -10,6 +10,7 @@ import * as flow from '../src/reference-flow.js';
 import {groupFor,frameFor} from '../src/flow-editing.js';
 import {snapMove} from '../src/snapping.js';
 import {flowText,renderSvg} from '../src/render.js';
+import * as formats from '../src/media-formats.js';
 
 // Evaluate the shipped event-handler source with a small DOM stub. This is an
 // application integration test, not browser or desktop UI automation.
@@ -32,7 +33,7 @@ function harness({joined=true}={}){
   addEventListener(type,handler){canvasEvents.set(type,handler)},setPointerCapture(){},querySelector(){return null}
  };
  const inspector={querySelector(selector){if(!fields.has(selector))fields.set(selector,{value:''});return fields.get(selector)}};
- const context=vm.createContext({...selection,...transforms,...actions,...model,...flow,snapMove,groupFor,
+ const context=vm.createContext({...selection,...transforms,...actions,...model,...flow,...formats,snapMove,groupFor,
   p:project,surface:'inner',selected:pair[0].id,joinColumns:joined,drag:null,cropEditing:false,mode:'jcard',tab:'text',trackSide:'A',
   document:{addEventListener(type,handler){documentEvents.set(type,handler)}},
   localStorage:{setItem(key,value){preferences.set(key,value)},getItem(key){return preferences.get(key)||null}},

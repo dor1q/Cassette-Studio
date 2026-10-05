@@ -4,6 +4,7 @@ import {recordLabelMetadata} from '../music-labels.mjs';
 import {albumArtLayer} from './album-art.js';
 import {groupFor} from './flow-editing.js';
 import {findReferenceFlowCopySource} from './reference-flow.js';
+import {isCDMode,modeSurfaces,normalizeEditorMode} from './media-formats.js';
 
 function preservedImportLayers(project,surfaces){
  const keep=new Set();
@@ -33,12 +34,13 @@ function preservedImportLayers(project,surfaces){
 
 function equivalentDefault(layer,preserved,surface){
  if(layer.type!==preserved.type||layer.type!=='text')return false;
+ if(preserved.source==='cdContents'&&(preserved.referenceCDContent||preserved.cdContentFlow))return layer.cdTemplate&&layer.cdPanelIndex===preserved.cdPanelIndex&&(preserved.cdColumnIndex===undefined||layer.cdColumnIndex===undefined||layer.cdColumnIndex===preserved.cdColumnIndex)&&['artist','album','cdTracks','cdContents','lyrics','production'].includes(layer.source);
  if(preserved.referenceFlow){
   const panel=preserved.referencePanelIndex;
   return surface==='inner'&&layer.source==='lyrics'&&layer.flowIndex===panel-2||surface==='outer'&&panel===3&&layer.source==='production';
  }
  if(!preserved.source)return false;
- if(layer.source===preserved.source)return layer.source!=='lyrics'||preserved.flowIndex===undefined||layer.flowIndex===preserved.flowIndex;
+ if(layer.source===preserved.source){if(preserved.cdTemplate&&layer.cdTemplate)return layer.cdPanelIndex===preserved.cdPanelIndex&&layer.flowIndex===preserved.flowIndex;return layer.source!=='lyrics'||preserved.flowIndex===undefined||layer.flowIndex===preserved.flowIndex;}
  const sources={referenceHeading:['artist','album'],flapTracks:['A','B'],flapProduction:['production']};
  return sources[preserved.source]?.includes(layer.source)||false;
 }
@@ -57,12 +59,12 @@ export function importMusicData(project,album,target='both',{tracksOnly=false}={
  const tracks=album.tracks.map(t=>({...t,id:uid(),title:String(t.title),artist:String(t.artist||''),seconds:Math.max(0,Math.round(Number(t.seconds)||0))}));
  if(target==='both'){
   Object.assign(project.data,{artist:album.artist||'',album:album.album||'',url:album.url||'',note:album.note||project.data.note,...recordLabelMetadata(album.recordLabels,album.recordLabelSource)});
-  [project.data.A,project.data.B]=balance(tracks);
+  [project.data.A,project.data.B]=isCDMode(project.editorMode)?[tracks,[]]:balance(tracks);
  }else project.data[target]=tracks;
  if(!tracksOnly&&!project.settings.lockDesign){
-  const surfaces=target==='both'?Object.keys(project.surfaces):['label'+target],preserved=preservedImportLayers(project,surfaces);
-  if(target==='both'){resetSurfaces(project);delete project.referenceFreePlace}
-  else{const previous={...project.surfaces};resetSurfaces(project);const replacement=project.surfaces['label'+target];project.surfaces=previous;project.surfaces['label'+target]=replacement}
+  const mode=normalizeEditorMode(project.editorMode),surfaces=target==='both'?(isCDMode(mode)?modeSurfaces(project,mode):['outer','inner','labelA','labelB']):['label'+target],preserved=preservedImportLayers(project,surfaces);
+  if(target==='both'){resetSurfaces(project,{mode});if(!isCDMode(mode))delete project.referenceFreePlace}
+  else{const previous={...project.surfaces};resetSurfaces(project,{preserveReference:true});const replacement=project.surfaces['label'+target];project.surfaces=previous;project.surfaces['label'+target]=replacement}
   restoreImportLayers(project,preserved);
  }
  return tracks.length;

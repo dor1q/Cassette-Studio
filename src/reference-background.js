@@ -1,6 +1,6 @@
 import {makeLayer,dimensions,panelRects} from './model.js';
 import {embeddedReferenceImage,referenceImageSource,referenceImageDimensions,MAX_REFERENCE_IMAGE_LENGTH} from './reference-image-source.js';
-import {REFERENCE_UNIT} from './reference-format.js';
+import {REFERENCE_UNIT,referenceSurfaces,referencePixelUnit} from './reference-format.js';
 import {referenceMusicGalleryScope} from './reference-music.js';
 
 // Public URL values describe image placement, rather than a generated gradient.
@@ -117,7 +117,13 @@ async function loadBackground(source,request,cached,getDimensions,normalize){
 function backgroundRegion(project,surface,mode,mask){
  const {w:W,h:H}=dimensions(project,surface);
  if(mask===null)return {x:0,y:0,w:W,h:H,targets:[],hidden:false};
- if(mode==='label')return {x:0,y:0,w:W,h:H,targets:[],hidden:!mask.includes(surface==='labelA'?0:1)};
+ if(mode==='label'||mode==='cd-label')return {x:0,y:0,w:W,h:H,targets:[],hidden:!mask.includes(surface==='labelB'?1:0)};
+ if(mode==='cd-insert'||mode==='cd-tray'){
+  const rects=panelRects(project,surface),count=rects.length,reverse=surface==='cdInside'||surface==='cdTrayInside',selected=rects.map((r,i)=>({r,i,bit:reverse?count+count-1-i:i})).filter(item=>mask.includes(item.bit));
+  if(!selected.length)return {x:0,y:0,w:W,h:H,targets:[],hidden:true};
+  const left=Math.min(...selected.map(item=>item.r.x)),right=Math.max(...selected.map(item=>item.r.x+item.r.w));
+  return {x:left,y:0,w:right-left,h:H,targets:selected.map(item=>item.i),hidden:false};
+ }
  const count=project.layout.panels,rects=panelRects(project,surface),selected=rects.map((r,i)=>({r,i,bit:surface==='inner'?count+count-1-r.index:r.index})).filter(v=>mask.includes(v.bit));
  if(!selected.length)return {x:0,y:0,w:W,h:H,targets:[],hidden:true};
  const left=Math.min(...selected.map(v=>v.r.x)),right=Math.max(...selected.map(v=>v.r.x+v.r.w));
@@ -126,10 +132,10 @@ function backgroundRegion(project,surface,mode,mask){
 export function referenceBackgroundGeometry(region,image,entry,mode='jcard'){
  const W=region.w,H=region.h,ratio=image.w/image.h,factor=bounded(entry.scale,1,400,100)/100;
  if(entry.tile){
-  const tileHeight=mode==='label'?W*factor/ratio:H*.4*factor,tileWidth=mode==='label'?W*factor:tileHeight*ratio;
+  const label=mode==='label'||mode==='cd-label',tileHeight=label?W*factor/ratio:H*.4*factor,tileWidth=label?W*factor:tileHeight*ratio;
   return {x:region.x,y:region.y,w:W,h:H,imageTile:true,tileWidth,tileHeight,fit:'stretch'};
  }
- const fit=entry.fit||(entry.panels!==null?'slice':mode==='label'?'slice':'meet');
+ const fit=entry.fit||(entry.panels!==null||mode==='label'||mode==='cd-label'||mode==='cd-insert'?'slice':'meet');
  let w=W*factor,h=H*factor;
  if(fit!=='stretch'){const size=(fit==='slice'?Math.max(W/image.w,H/image.h):Math.min(W/image.w,H/image.h))*factor;w=image.w*size;h=image.h*size}
  const cx=region.x+W*entry.offset.x/100,cy=region.y+H*entry.offset.y/100;
@@ -149,14 +155,14 @@ function savedBackgroundFrame(region,image,entry,mode){
 export function referenceBackgroundRetryFrame(project,layer,image,surface){
  const original=layer.referenceBackgroundRestoreFrame,entry=layer.referenceBackgroundEntry;
  if(!original||!entry||!Object.entries(original).every(([key,value])=>Array.isArray(value)?Array.isArray(layer[key])&&value.length===layer[key].length&&value.every((item,index)=>item===layer[key][index]):layer[key]===value))return null;
- const mode=surface.startsWith('label')?'label':'jcard',region=backgroundRegion(project,surface,mode,entry.panels);
+ const mode=surface.startsWith('cd')?project.editorMode:surface.startsWith('label')?'label':'jcard',region=backgroundRegion(project,surface,mode,entry.panels);
  return {...savedBackgroundFrame(region,image,entry,mode),panelTargets:region.targets};
 }
 export const referenceBackgroundFrameSnapshot=layer=>Object.fromEntries(['x','y','w','h','rotation','tileWidth','tileHeight','fit','imageTile','panelTargets'].map(key=>[key,Array.isArray(layer[key])?[...layer[key]]:layer[key]]));
 export async function restoreReferenceBackgrounds(project,params,request,mode='jcard',cached=[],getDimensions=referenceImageDimensions,normalize=normalizeBackgroundImage){
- const surfaces=mode==='label'?['labelA','labelB']:['outer','inner'],decoded=decodeReferenceBackground(params,mode==='label'?2:project.layout.panels*2),entries=[decoded.main,...decoded.extras],result={restored:0,missing:0};
+ const surfaces=referenceSurfaces(project,mode),count=mode==='cd-label'?1:mode==='cd-insert'?project.layout.cdInsertPanels*2:mode==='cd-tray'?6:mode==='label'?2:project.layout.panels*2,decoded=decodeReferenceBackground(params,count),entries=[decoded.main,...decoded.extras],result={restored:0,missing:0};
  if(!project.referenceBackgroundChoicesScope)project.referenceBackgroundChoicesScope=referenceBackgroundScope(params);
- for(const surface of surfaces)project.surfaces[surface]=project.surfaces[surface].filter(l=>!l.referenceBackground);
+ for(const surface of surfaces)project.surfaces[surface]=(project.surfaces[surface]||[]).filter(l=>!l.referenceBackground);
  for(const [index,entry]of entries.entries()){
   if(!entry.source)continue;
   const regions=surfaces.map(surface=>({surface,region:backgroundRegion(project,surface,mode,entry.panels)}));
@@ -164,7 +170,7 @@ export async function restoreReferenceBackgrounds(project,params,request,mode='j
   const replacement=!source&&entry.source.type==='providerIndex'&&cached.find(layer=>sourceKey&&layer.referenceBackgroundSourceKey===sourceKey&&embeddedReferenceImage(layer.src));let data;
   if(regions.some(v=>!v.region.hidden))try{data=await loadBackground(replacement?.src||source,request,cached,getDimensions,normalize);if(replacement)data.key=replacement.referenceAssetKey||'';result.restored++}catch{result.missing++}
   for(const {surface,region}of regions){
-   const image=data||{w:1,h:1},frame=savedBackgroundFrame(region,image,entry,mode),unit=mode==='label'?project.layout.labelW/251.16:REFERENCE_UNIT;
+   const image=data||{w:1,h:1},frame=savedBackgroundFrame(region,image,entry,mode),unit=mode==='label'?project.layout.labelW/251.16:referencePixelUnit(mode);
    const layer=makeLayer('image',{...frame,category:'background',source:'referenceBackground',referenceBackground:true,referenceBackgroundIndex:index,referenceBackgroundSource:entry.source,referenceBackgroundSourceKey:sourceKey,referenceBackgroundEntry:entry,name:data?'Фон из ссылки'+(index?' · '+(index+1):''):'Фон из ссылки — замените файл',src:data?.src||'',referenceAssetKey:data?.key||referenceImageSource(source)||'',missingReference:!data&&!region.hidden,opacity:entry.opacity/100,blendMode:entry.blendMode,blur:bounded(entry.blur*unit,0,20,0),visible:!region.hidden,panelTargets:region.targets});
    layer.referenceBackgroundRestoreFrame=referenceBackgroundFrameSnapshot(layer);
    const list=project.surfaces[surface],at=list.findIndex(l=>!l.referenceBackground);list.splice(at<0?list.length:at,0,layer);

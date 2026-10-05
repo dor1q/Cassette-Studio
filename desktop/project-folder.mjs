@@ -3,6 +3,7 @@ import {mkdir,rename,unlink,link,lstat,realpath,readdir,open} from 'node:fs/prom
 import path from 'node:path';
 import {randomUUID,createHash} from 'node:crypto';
 import {hostname,tmpdir} from 'node:os';
+import {normalizeEditorMode} from '../src/media-formats.js';
 
 export const PROJECT_FOLDER_NAME='Cassette Studio Projects';
 export const MAX_PROJECT_BYTES=64*1024*1024;
@@ -179,7 +180,8 @@ export function createProjectFolderStore(configDirectory,{maxBytes=MAX_PROJECT_B
    const prior=await existing(directory,id);
    if(prior)revisionMatches(prior,payload.expectedRevision);
    else if(payload.expectedRevision!=null)fail('CONFLICT','Проект больше не находится в библиотеке. Сохраните отдельную копию.');
-   const now=new Date().toISOString(),record={format:PROJECT_FORMAT,version:1,id,revision:randomUUID(),createdAt:prior?.createdAt||now,updatedAt:now,title:titleOf(project),favorite:prior?.favorite===true,kind:project.mode==='label'?'cassette-label':'jcard',project};
+   const mode=normalizeEditorMode(project.editorMode??(project.mode==='cassette-label'?'label':project.mode));
+   const now=new Date().toISOString(),record={format:PROJECT_FORMAT,version:1,id,revision:randomUUID(),createdAt:prior?.createdAt||now,updatedAt:now,title:titleOf(project),favorite:prior?.favorite===true,kind:mode==='label'?'cassette-label':mode,project};
    return writeRecord(directory,record,prior);
   });
  };

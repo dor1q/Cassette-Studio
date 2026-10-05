@@ -1,5 +1,6 @@
 import {clamp,makeLayer,referencePosition,clone,uid} from './model.js';
 import {referenceSurface,decodedText} from './reference-format.js';
+import {EDITOR_SURFACES} from './media-formats.js';
 import {loadReferenceImage,referenceImageSource,MAX_REFERENCE_IMAGE_LENGTH} from './reference-image-source.js';
 
 export function parseReferenceCustomDecals(raw){
@@ -27,8 +28,8 @@ export function parseReferenceDecals(value){
  }).filter(Boolean);
 }
 export function referenceDecalLayer(project,decal,item,src,naturalWidth,naturalHeight,surface='outer'){
- const base=surface.startsWith('label')?130*project.layout.labelW/251.16:800/(600/25.4),width=clamp(base*decal.scale/100,.5,500),w=width*(decal.stretch||100)/100,h=width*naturalHeight/naturalWidth;
- return makeLayer('image',{category:'decals',referenceId:decal.id,referenceDecalLayer:decal.layer,name:item.name,src,...referencePosition(project,decal.x,decal.y,w,h,decal.rotation,surface),w,h,rotation:decal.rotation,fit:decal.stretch&&decal.stretch!==100?'stretch':'meet',tintMode:decal.tintMode||'none',tintColor:decal.tintColor||project.settings.fg});
+ const base=surface==='cdLabel'?65*25.4/72:surface.startsWith('label')?130*project.layout.labelW/251.16:800/(600/25.4),width=clamp(base*decal.scale/100,.5,500),w=width*(decal.stretch||100)/100,h=width*naturalHeight/naturalWidth;
+ return makeLayer('image',{category:'decals',referenceId:decal.id,referenceDecalLayer:decal.layer,name:item.name,src,...referencePosition(project,decal.x,decal.y,w,h,decal.rotation,surface,true,!!decal.xAnchored),w,h,rotation:decal.rotation,fit:decal.stretch&&decal.stretch!==100?'stretch':'meet',tintMode:decal.tintMode||'none',tintColor:decal.tintColor||project.settings.fg});
 }
 
 async function imageDimensions(src){const image=new Image();image.src=src;await image.decode();return [image.naturalWidth,image.naturalHeight]}
@@ -42,7 +43,7 @@ export async function restoreReferenceDecals(project,params,request,getDimension
  const items=catalog.flatMap(category=>category.items.map(item=>({...item,category:category.id}))),layers=[];
  let missing=0,restored=0,placeholders=0;
  for(const decal of decals){
-  const target=referenceSurface(project,surface.startsWith('label')?'label':'jcard',decal.side);
+  const target=referenceSurface(project,surface.startsWith('cd')?project.editorMode:surface.startsWith('label')?'label':'jcard',decal.side);
   const embedded=cached.find(layer=>layer.referenceId===decal.id&&/^data:image\//.test(layer.src||''));
   if(embedded){try{const [w,h]=await getDimensions(embedded.src);if(!w||!h)throw Error('Размер');const layer=referenceDecalLayer(project,decal,{name:embedded.name},embedded.src,w,h,target);if(embedded.referenceAssetKey)layer.referenceAssetKey=embedded.referenceAssetKey;layers.push({layer,target,under:decal.under});restored++;continue}catch{}}
   const upload=custom.find(item=>item.id===decal.id);
@@ -57,7 +58,7 @@ export async function restoreReferenceDecals(project,params,request,getDimension
    layers.push({layer:referenceDecalLayer(project,decal,item,data.src,w,h,target),target,under:decal.under});restored++;
   }catch{missing++}
  }
- for(const target of ['outer','inner','labelA','labelB']){const placed=layers.filter(x=>x.target===target||(target.startsWith('label')&&project.layout.sync&&x.target.startsWith('label'))).map(x=>({...x,layer:x.target===target?x.layer:{...clone(x.layer),id:uid()}}));const background=placed.filter(x=>x.layer.referenceDecalLayer==='background'),graphics=placed.filter(x=>x.under&&x.layer.referenceDecalLayer!=='background'),current=project.surfaces[target],firstText=current.findIndex(l=>l.type==='text'),at=firstText<0?current.length:firstText;const base=current.filter(l=>l.referenceBackground),rest=current.slice(0,at).filter(l=>!l.referenceBackground);project.surfaces[target]=[...base,...background.map(x=>x.layer),...rest,...graphics.map(x=>x.layer),...current.slice(at),...placed.filter(x=>!x.under).map(x=>x.layer)]}
+ for(const target of EDITOR_SURFACES){const placed=layers.filter(x=>x.target===target||(target.startsWith('label')&&project.layout.sync&&x.target.startsWith('label'))).map(x=>({...x,layer:x.target===target?x.layer:{...clone(x.layer),id:uid()}}));const background=placed.filter(x=>x.layer.referenceDecalLayer==='background'),graphics=placed.filter(x=>x.under&&x.layer.referenceDecalLayer!=='background'),current=project.surfaces[target]||[],firstText=current.findIndex(l=>l.type==='text'),at=firstText<0?current.length:firstText;const base=current.filter(l=>l.referenceBackground),rest=current.slice(0,at).filter(l=>!l.referenceBackground);project.surfaces[target]=[...base,...background.map(x=>x.layer),...rest,...graphics.map(x=>x.layer),...current.slice(at),...placed.filter(x=>!x.under).map(x=>x.layer)]}
  return {restored,missing,placeholders};
 }
 

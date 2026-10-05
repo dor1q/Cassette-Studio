@@ -1,4 +1,5 @@
 import {clone,esc,uid} from './model.js';
+import {normalizeEditorMode,modeTitle} from './media-formats.js';
 
 const LINKS_KEY='cassette-project-folder-links',TARGET_KEY='cassette-library-target';
 export function unwrapFolderResult(result){
@@ -14,7 +15,7 @@ export function readFolderLinks(storage){
 }
 
 // Paths and revisions belong to this device's preferences, not portable artwork.
-export function createFolderSession({bridge,storage,getProject,getMode=()=> 'jcard',newId=uid}){
+export function createFolderSession({bridge,storage,getProject,getMode=()=>getProject()?.editorMode??getProject()?.mode??'jcard',newId=uid}){
  const links=readFolderLinks(storage);
  let busy=false;
  const persist=()=>{try{storage?.setItem(LINKS_KEY,JSON.stringify([...links].slice(-1000)))}catch{}};
@@ -34,10 +35,10 @@ export function createFolderSession({bridge,storage,getProject,getMode=()=> 'jca
   async save({copy=false}={}){
    if(busy)throw Error('Сохранение уже выполняется.');busy=true;
    try{
-    const project=getProject(),initialId=project.libraryId,snapshot=clone(project),savedMode=getMode(),status=await call('status');
+    const project=getProject(),initialId=project.libraryId,snapshot=clone(project),savedMode=normalizeEditorMode(getMode()),status=await call('status');
     if(!status.available){const error=Error(status.error?.message||'Выберите папку для проектов.');error.code=status.error?.code||'NOT_CONFIGURED';throw error}
     const prior=copy?null:linkFor(snapshot,status);
-    snapshot.libraryId=copy?newId():snapshot.libraryId||newId();snapshot.mode=savedMode;
+    snapshot.libraryId=copy?newId():snapshot.libraryId||newId();snapshot.mode=savedMode;snapshot.editorMode=savedMode;
     const record=await call('save',{...(prior?{id:prior.id,expectedRevision:prior.revision}:{}),expectedFolder:status.folderLabel,project:snapshot});
     // Preserve identity only after the write commits. The user can keep editing meanwhile.
     this.remember(snapshot,record,status);
@@ -60,7 +61,7 @@ export function createProjectFolderUI({bridge,storage,getProject,getMode,getRevi
   const actions=`<div class="row">${button(status?.configured?'Сменить папку':'Выбрать папку','choose')}${status?.configured?button('Обновить','refresh')+button('Отключить','disconnect'):''}</div>`;
   const issue=status?.configured&&!status.available?`<p class="library-message" role="status">${esc(status.error?.message||'Папка сейчас недоступна.')}</p>`:'';
   const save=status?.available?`<div class="row">${button('Сохранить текущий в папку','save','class="primary"')}${button('Сохранить как копию','save-copy')}</div>`:'';
-  const rows=records.map(record=>`<article class="library-card"><div><strong>${esc(record.title)}</strong><small>${new Date(record.updatedAt).toLocaleString('ru')} · ${record.kind==='cassette-label'?'Cassette Label':'J-card'}</small></div>${button(record.favorite?'★':'☆','favorite',`data-id="${esc(record.id)}" aria-label="${record.favorite?'Убрать из избранного':'В избранное'}"`)}<div class="row">${button('Открыть','open',`data-id="${esc(record.id)}"`)}${button('Переименовать','rename',`data-id="${esc(record.id)}"`)}${button('Удалить','delete',`data-id="${esc(record.id)}"`)}</div></article>`).join('');
+  const rows=records.map(record=>`<article class="library-card"><div><strong>${esc(record.title)}</strong><small>${new Date(record.updatedAt).toLocaleString('ru')} · ${esc(modeTitle(record.kind==='cassette-label'?'label':record.kind))}</small></div>${button(record.favorite?'★':'☆','favorite',`data-id="${esc(record.id)}" aria-label="${record.favorite?'Убрать из избранного':'В избранное'}"`)}<div class="row">${button('Открыть','open',`data-id="${esc(record.id)}"`)}${button('Переименовать','rename',`data-id="${esc(record.id)}"`)}${button('Удалить','delete',`data-id="${esc(record.id)}"`)}</div></article>`).join('');
   display(`<section class="library-location">${location}${issue}${actions}</section>${save}${rows||(status?.available?'<p class="library-empty">В этой папке ещё нет проектов.</p>':'')}<p class="hint">Удалённые проекты перемещаются в подпапку .trash. Отключение папки сохраняет все файлы.</p>`);
  };
  async function show(){

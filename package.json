@@ -1,6 +1,6 @@
 {
   "name": "cassette-studio",
-  "version": "2.3.13",
+  "version": "2.4.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -23,6 +23,6 @@
     "fake-indexeddb": "^6.2.5"
   },
   "main": "desktop/main.mjs",
-  "description": "J-card and cassette label editor for Windows",
+  "description": "Cassette and CD artwork editor for Windows",
   "author": "Cassette Studio"
 }

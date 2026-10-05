@@ -24,6 +24,7 @@ export const PRODUCTION_SHEETS=['chalkpit-jcard','chalkpit-jcard-8up','chalkpit-
 export const isProductionSheet=sheet=>PRODUCTION_SHEETS.includes(sheet);
 const near=(a,b)=>Math.abs(Number(a)-b)<.08;
 export function productionChoices(p,mode='jcard'){
+ if(!['jcard','label'].includes(mode))return [];
  if(mode==='label')return ['body','full'].includes(p.layout.printArea)?[{value:'chalkpit-cassette-4up',label:'Chalkpit · 4 кассеты на листе'}]:[];
  if(!cards[p.layout.panels]||!['standard','tapered'].includes(p.layout.flapShape)||!near(p.layout.flap,25.4)||!near(p.layout.spine,12.7))return [];
  const choices=[{value:'chalkpit-jcard',label:'Chalkpit · J-card'}];
