@@ -71,13 +71,13 @@ test('save binds its write to the folder whose status and revision were read',as
 
 function uiFixture(){
  const values=new Map(),storage={getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value)},status={ok:true,configured:true,available:true,folderLabel:'Test sync/Cassette Studio Projects'};
- let project=createProject(),click,localShown=0,closed=0;const toasts=[],autosaves=[],renames=[],opens=[],dialog={open:true},input={value:'Renamed',focus(){}};
+ let project=createProject(),click,localShown=0,closed=0,revision=0,openGeneration=0;const toasts=[],autosaves=[],renames=[],opens=[],openTickets=[],dialog={open:true},input={value:'Renamed',focus(){}};
  project.libraryId='local-working';const record={id:'cloud-record',revision:'first-revision',title:project.title,updatedAt:'2026-10-04T00:00:00.000Z',kind:'jcard',project:clone(project)},body={dataset:{},innerHTML:'',addEventListener(name,handler){if(name==='click')click=handler},closest(){return dialog},querySelector(){return input}};
  const bridge={status:async()=>({...status}),list:async()=>({ok:true,projects:[record]}),read:async()=>({ok:true,...record,project:clone(record.project)}),choose:async()=>({...status}),disconnect:async()=>({ok:true}),rename:async payload=>({ok:true,...record,title:payload.title,revision:'renamed-revision'}),save:async payload=>({ok:true,...record,title:payload.project.title,revision:'saved-revision'})};
  createFolderSession({bridge,storage,getProject:()=>project}).remember(project,record,status);
  const modal=(title,html)=>{delete body.dataset.libraryView;body.innerHTML=html;dialog.open=true};
- const ui=createProjectFolderUI({bridge,storage,getProject:()=>project,getMode:()=> 'jcard',body,modal,toast:text=>toasts.push(text),closeModal:()=>{closed++;dialog.open=false},showLocal:()=>{localShown++;modal('Local','LOCAL LIBRARY')},saveAutosave:async value=>autosaves.push(value),onProjectRename:async(value,title)=>{renames.push([value,title]);value.title=title},openProject:async raw=>{project=clone(raw);opens.push(project);return project}});
- return {ui,body,bridge,storage,record,status,input,toasts,autosaves,renames,opens,dialog,get project(){return project},set project(value){project=value},get localShown(){return localShown},get closed(){return closed},leave(){modal('Elsewhere','UNRELATED DIALOG')},click(action,id=record.id){const element={dataset:{folderAction:action,id},disabled:false};return click({target:{closest:()=>element}})}};
+ const ui=createProjectFolderUI({bridge,storage,getProject:()=>project,getMode:()=> 'jcard',getRevision:()=>revision,beginOpen:()=>({generation:++openGeneration}),body,modal,toast:text=>toasts.push(text),closeModal:()=>{closed++;dialog.open=false},showLocal:()=>{localShown++;modal('Local','LOCAL LIBRARY')},saveAutosave:async value=>autosaves.push(value),onProjectRename:async(value,title)=>{renames.push([value,title]);value.title=title},openProject:async(raw,ticket)=>{openTickets.push(ticket);project=clone(raw);opens.push(project);return project}});
+ return {ui,body,bridge,storage,record,status,input,toasts,autosaves,renames,opens,openTickets,dialog,get project(){return project},set project(value){project=value},get openGeneration(){return openGeneration},get localShown(){return localShown},get closed(){return closed},edit(edit){edit(project);revision++},leave(){modal('Elsewhere','UNRELATED DIALOG')},click(action,id=record.id){const element={dataset:{folderAction:action,id},disabled:false};return click({target:{closest:()=>element}})}};
 }
 
 test('late folder selection or disconnection preserves a dialog opened meanwhile',async()=>{
@@ -113,6 +113,20 @@ test('opening a current library record remembers its revision and autosaves the 
  const f=uiFixture();await f.ui.show();await f.click('open');
  assert.equal(f.opens.length,1);assert.equal(f.autosaves[0],f.project);assert.equal(f.closed,1);
  const link=readFolderLinks(f.storage).get(f.project.libraryId);assert.equal(link.id,f.record.id);assert.equal(link.revision,f.record.revision);
+});
+
+test('a folder read cannot overwrite manual changes in the same working project',async()=>{
+ const f=uiFixture();await f.ui.show();const wait=deferred();f.bridge.read=()=>wait.promise;
+ const pending=f.click('open');await tick();f.edit(project=>project.title='Changed while reading');const current=f.project;
+ wait.resolve({ok:true,...f.record,project:clone(f.record.project)});await pending;
+ assert.equal(f.project,current);assert.equal(f.project.title,'Changed while reading');assert.equal(f.opens.length,0);assert.equal(f.autosaves.length,0);assert.equal(f.closed,0);
+});
+
+test('folder open tickets are created at the click before disk reading and forwarded unchanged',async()=>{
+ const f=uiFixture();await f.ui.show();const wait=deferred();f.bridge.read=()=>wait.promise;
+ const pending=f.click('open');await tick();assert.equal(f.openGeneration,1);assert.equal(f.openTickets.length,0);
+ wait.resolve({ok:true,...f.record,project:clone(f.record.project)});await pending;
+ assert.deepEqual(f.openTickets,[{generation:1}]);assert.equal(f.opens.length,1);assert.equal(f.autosaves[0],f.project);
 });
 
 test('a superseded list response cannot redraw the current library',async()=>{

@@ -3,7 +3,7 @@ import {referenceCoverIndex} from './cover-choices.js';
 
 export function referenceArtworkKey(url){
  const u=url instanceof URL?url:new URL(url),params=u.searchParams;
- const parts=['id','playlistUrl','source','country','cp'].map(name=>params.get(name)||'');
+ const parts=['id','playlistUrl','source','country','cp','sai','sbi'].map(name=>params.get(name)||'');
  return parts.some(Boolean)?JSON.stringify([...parts,referenceCoverIndex(params)]):'';
 }
 export function cachedReferenceArtwork(project,url){
@@ -13,6 +13,15 @@ export function cachedReferenceArtwork(project,url){
 
 export function albumArtLayer(project,surface){
  return project.surfaces[surface].find(l=>l.type==='image'&&(['albumCover','art'].includes(l.category)||['Обложка альбома','Обложка'].includes(l.name)));
+}
+
+export function canReplaceAlbumArt(project,surface){
+ if(albumArtLayer(project,surface)?.locked)return false;
+ if(project.layout.sync&&surface.startsWith('label')){
+  const other=surface==='labelA'?'labelB':'labelA';
+  if(albumArtLayer(project,other)?.locked)return false;
+ }
+ return true;
 }
 
 export function fitCoverImage(layer){
@@ -47,9 +56,12 @@ export function applyReferenceArtwork(project,params,naturalWidth,naturalHeight,
 
 export function applyAlbumArt(project,src,target='both'){
  const surfaces=target==='both'?['outer','labelA','labelB']:['label'+target];
+ const result={applied:[],locked:[]};
  for(const surface of surfaces){
+  if(!canReplaceAlbumArt(project,surface)){result.locked.push(surface);continue}
   const layers=project.surfaces[surface];
   const existing=albumArtLayer(project,surface);
+  result.applied.push(surface);
   if(existing){existing.src=src;existing.category='albumCover';delete existing.referenceAssetKey;delete existing.referenceCoverIndex;fitCoverImage(existing);continue}
   const label=surface.startsWith('label'),size=dimensions(project,surface);
   const firstForeground=layers.findIndex(l=>l.category!=='background'&&l.referenceDecalLayer!=='background');
@@ -57,4 +69,5 @@ export function applyAlbumArt(project,src,target='both'){
  }
  const upload=project.uploads.find(u=>u.category==='albumCover');
  if(upload){upload.src=src;delete upload.referenceAssetKey}else project.uploads.push({name:'Обложка альбома',category:'albumCover',src});
+ return result;
 }

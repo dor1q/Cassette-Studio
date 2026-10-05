@@ -1,8 +1,7 @@
 import {makeLayer,dimensions,panelRects} from './model.js';
 import {embeddedReferenceImage,referenceImageSource,referenceImageDimensions,MAX_REFERENCE_IMAGE_LENGTH} from './reference-image-source.js';
 import {REFERENCE_UNIT} from './reference-format.js';
-import {referenceMusicUrl} from './reference-music.js';
-import {musicGalleryScope} from './music-gallery-scope.js';
+import {referenceMusicGalleryScope} from './reference-music.js';
 
 // Public URL values describe image placement, rather than a generated gradient.
 export const REFERENCE_BACKGROUND_PATTERNS=Object.freeze([
@@ -84,7 +83,7 @@ export function referenceBackgroundSourceKey(params,source){
  return JSON.stringify([scope,source]);
 }
 export function referenceBackgroundScope(params){
- return musicGalleryScope({url:referenceMusicUrl(params),id:params.get('id'),artist:params.get('musicArtist'),album:params.get('musicAlbum'),cover:params.get('cp')});
+ return referenceMusicGalleryScope(params);
 }
 export function referenceBackgroundRetrySource(project,layer){
  const source=layer.referenceBackgroundSource;

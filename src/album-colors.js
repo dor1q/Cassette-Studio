@@ -33,6 +33,7 @@ export function applyAlbumColors(project,palette,{force=false}={}){
  const foreground=oldForeground==='rainbow'?'rainbow':palette.fg;
  Object.assign(project.settings,{bg:palette.bg,bgB:palette.bg,bgInside:palette.bg,fg:foreground,referenceTransparentBackground:false});
  for(const layer of new Set([...Object.values(project.surfaces).flat(),...referenceFlowLayers(project)])){
+  if(layer.locked)continue;
   const inherited=String(layer.color).toLowerCase()===oldForeground;
   if(layer.type==='text'&&!layer.referenceOwnColor&&(layer.source||inherited))layer.color=foreground;if(layer.albumStyle&&!layer.referenceAlbumOwnColor&&String(layer.albumStyle.color).toLowerCase()===oldForeground)layer.albumStyle.color=foreground;
   if(['qr','barcode'].includes(layer.type)&&!layer.referenceOwnColor&&layer.referenceColorInherited!==false&&(inherited||layer.referenceColorInherited===true))layer.color=foreground;

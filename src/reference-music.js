@@ -5,40 +5,38 @@ import {selectCoverChoice,referenceCoverIndex,audioBackgroundChoices,coverChoice
 import {loadReferenceImage} from './reference-image-source.js';
 import {recordLabelMetadata} from '../music-labels.mjs';
 import {musicGalleryScope} from './music-gallery-scope.js';
+import {referenceMusicSource,mergeReferenceSidePosters,referenceSidePosters} from './reference-side-music.js';
 
 export function referenceMusicUrl(params){
  const supplied=params.get('playlistUrl');
  if(supplied){try{return parseMusicLink(supplied).url}catch{}}
- const id=params.get('id')||'',source=params.get('source')||'',value=id.includes('.')?id.slice(id.indexOf('.')+1):id;
- const spotify=source.match(/^spotify-(album|track|playlist)$/)?.[1]||({sa:'album',st:'track',sp:'playlist'})[id.split('.')[0]]||(source==='spotify'?'playlist':'');
- if(spotify&&/^[A-Za-z0-9]{22}$/.test(value))return 'https://open.spotify.com/'+spotify+'/'+value;
- if((/^a\.\d+$/.test(id)||/^apple-(album|song|track)$/.test(source))&&/^\d+$/.test(value)){
-  return 'https://music.apple.com/'+(params.get('country')||'us')+'/'+(/song|track/.test(source)?'song':'album')+'/id'+value;
- }
- if((/^ap\./.test(id)||source==='apple')&&/^pl\.[A-Za-z0-9.-]+$/.test(value))return 'https://music.apple.com/'+(params.get('country')||'us')+'/playlist/'+value;
- const deezer=source.match(/^deezer-(album|track|playlist)$/)?.[1]||(/^dz\./.test(id)||source==='deezer'?'playlist':'');
- if(deezer&&/^\d+$/.test(value))return 'https://www.deezer.com/'+deezer+'/'+value;
- const youtube=source.match(/^youtube(?:-music)?-(video|track|playlist)$/)?.[1]||(/^yv\./.test(id)?'video':/^yt\./.test(id)?'playlist':'');
- if(youtube&&/^[A-Za-z0-9_-]{10,120}$/.test(value))return youtube==='playlist'?'https://www.youtube.com/playlist?list='+value:'https://www.youtube.com/watch?v='+value;
- return '';
+ const options={country:params.get('country')||'us',source:params.get('source')||'',allowNumeric:false,allowLegacyApplePlaylist:true};
+ return referenceMusicSource(params.get('id'),options)||referenceMusicSource(params.get('musicId'),{...options,allowNumeric:true});
+}
+
+export function referenceMusicGalleryScope(params){
+ const base=musicGalleryScope({url:referenceMusicUrl(params),id:params.get('id'),artist:params.get('musicArtist'),album:params.get('musicAlbum'),cover:params.get('cp')});
+ const sides=['sai','sbi'].map(key=>referenceMusicSource(params.get(key),{country:params.get('country')||'us'}));
+ return sides.some(Boolean)?JSON.stringify(['side-imports',base,...sides]):base;
 }
 
 export async function restoreReferenceMusicMetadata(project,url,request,previous=project){
  const musicUrl=referenceMusicUrl(url.searchParams);
- if(!musicUrl)return {album:null,musicUrl,choices:[],backgroundChoices:[],cached:false};
- const reusable=[project,previous].find(candidate=>candidate.referenceMusicMetadataSource===musicUrl&&candidate.referenceMusicMetadata);
- const imported=reusable?.referenceMusicMetadata||await request('/api/import?url='+encodeURIComponent(musicUrl));
+ const hasSides=referenceSidePosters(project).length>0;
+ if(!musicUrl&&!hasSides)return {album:null,musicUrl,choices:[],backgroundChoices:[],cached:false};
+ const reusable=musicUrl?[project,previous].find(candidate=>candidate.referenceMusicMetadataSource===musicUrl&&candidate.referenceMusicMetadata):null;
+ const imported=musicUrl?(reusable?.referenceMusicMetadata||await request('/api/import?url='+encodeURIComponent(musicUrl))):{cover:'',url:'',customPosters:[],tracks:[]};
  // Keep only artwork metadata needed to restore galleries, never session or service-connection data.
  const normalized=coverChoices(imported);
- const album={cover:normalized[0].file_path||'',coverAlternatives:[...(imported.coverAlternatives||[])],url:imported.url||musicUrl,
+ const album=mergeReferenceSidePosters(project,{cover:normalized[0].file_path||'',coverAlternatives:[...(imported.coverAlternatives||[])],url:imported.url||musicUrl,
   customPosters:normalized.slice(1).map(({index,...poster})=>poster),
   ...recordLabelMetadata(imported.recordLabels,imported.recordLabelSource),
-  tracks:Array.isArray(imported.tracks)?imported.tracks.map(track=>({title:track.title||track.trackName||'',thumbnail:track.thumbnail||'',thumbnailWidth:track.thumbnailWidth,thumbnailHeight:track.thumbnailHeight})):[]};
+  tracks:Array.isArray(imported.tracks)?imported.tracks.map(track=>({title:track.title||track.trackName||'',thumbnail:track.thumbnail||'',thumbnailWidth:track.thumbnailWidth,thumbnailHeight:track.thumbnailHeight})):[]});
  const options={cp:url.searchParams.get('cp')||''},selection=selectCoverChoice(album,url.searchParams,options),backgroundChoices=audioBackgroundChoices(album,options);
  project.referenceMusicMetadataSource=musicUrl;project.referenceMusicMetadata=album;
- Object.assign(project.data,recordLabelMetadata(album.recordLabels,album.recordLabelSource));
+ if(musicUrl)Object.assign(project.data,recordLabelMetadata(album.recordLabels,album.recordLabelSource));
  project.referenceCoverChoices=selection.choices;project.referenceBackgroundChoices=backgroundChoices;
- project.referenceBackgroundChoicesScope=musicGalleryScope({url:musicUrl});
+ project.referenceBackgroundChoicesScope=referenceMusicGalleryScope(url.searchParams);
  return {album,musicUrl,choices:selection.choices,backgroundChoices,cached:!!reusable};
 }
 
@@ -46,12 +44,12 @@ export async function restoreReferenceMusicArtwork(project,url,request,mode='jca
  const params=url.searchParams;
  if(referenceCoverIndex(params)===-1)return {artwork:'',restored:0};
  const cached=cachedReferenceArtwork(previous,url),musicUrl=referenceMusicUrl(params);
- if(!cached&&!musicUrl)return {artwork:'',restored:0};
+ if(!cached&&!musicUrl&&!referenceSidePosters(project).length)return {artwork:'',restored:0};
  let artwork=cached,cover='',selection=null,warnings=[];
  const fallbackWarning='Выбранная картинка недоступна. Загружена основная обложка.';
  if(!artwork){
   const {album}=await restoreReferenceMusicMetadata(project,url,request,previous);selection=selectCoverChoice(album,params);cover=selection.file_path||'';
-  if(!cover)throw Error('Музыкальный сервис не вернул обложку');
+  if(!cover)throw Error(musicUrl?'Музыкальный сервис не вернул обложку':'В ссылке нет основной обложки. Выберите картинку источника стороны.');
   if(selection.fallback)warnings.push(fallbackWarning);
   const imageDimensions=async src=>{const size=await getDimensions(src);return Array.isArray(size)?size:[size.w,size.h]};
   let loaded;
@@ -69,7 +67,7 @@ export async function restoreReferenceMusicArtwork(project,url,request,mode='jca
   if(previous.referenceMusicMetadataSource===musicUrl&&previous.referenceMusicMetadata){
    await restoreReferenceMusicMetadata(project,url,request,previous);
   }
-  project.data.url||=musicUrl||previous.data.url;
+  if(musicUrl)project.data.url||=musicUrl;
   project.referenceCoverChoices||=previous.referenceCoverChoices||[];
   project.referenceBackgroundChoices||=previous.referenceBackgroundChoices||[];
   project.referenceCoverIndex=previous.referenceCoverIndex??referenceCoverIndex(params);

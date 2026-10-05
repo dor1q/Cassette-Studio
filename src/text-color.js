@@ -9,6 +9,7 @@ export function setProjectTextColor(project,value,{all=false}={}){
  const previous=normalizePaint(project.settings.fg),next=normalizePaint(value);
  project.settings.fg=next;project.settings.referenceTransparentText=next==='transparent';
  for(const layer of new Set([...Object.values(project.surfaces).flat(),...referenceFlowLayers(project)])){
+  if(layer.locked)continue;
   if(['qr','barcode'].includes(layer.type)){
    if(!layer.referenceOwnColor&&(layer.referenceColorInherited===true||layer.referenceColorInherited===undefined&&normalizePaint(layer.color)===previous))layer.color=next;
    continue;

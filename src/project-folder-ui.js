@@ -48,7 +48,7 @@ export function createFolderSession({bridge,storage,getProject,getMode=()=> 'jca
  };
 }
 
-export function createProjectFolderUI({bridge,storage,getProject,getMode,openProject,onProjectRename,saveAutosave,showLocal,modal,body,toast,closeModal}){
+export function createProjectFolderUI({bridge,storage,getProject,getMode,getRevision=()=>undefined,beginOpen=()=>undefined,openProject,onProjectRename,saveAutosave,showLocal,modal,body,toast,closeModal}){
  const session=createFolderSession({bridge,storage,getProject,getMode});
  let status=null,records=[],generation=0,writing=false;
  const button=(label,action,attrs='')=>`<button type="button" data-folder-action="${action}" ${attrs}>${label}</button>`;
@@ -96,10 +96,10 @@ export function createProjectFolderUI({bridge,storage,getProject,getMode,openPro
    case 'save':return save();
    case 'save-copy':return save({copy:true});
    case 'open':{
-    if(!record)return;const ticket=generation,startedProject=getProject(),startedFolder=status?.folderLabel;
+    if(!record)return;const ticket=generation,startedProject=getProject(),startedRevision=getRevision(),openTicket=beginOpen(),startedFolder=status?.folderLabel;
     const result=await session.call('read',record.id),nextStatus=await session.call('status');
-    if(ticket!==generation||!active()||getProject()!==startedProject||nextStatus.folderLabel!==startedFolder)return;
-    const project=await openProject(result.project);session.remember(project,result,nextStatus);
+    if(ticket!==generation||!active()||getProject()!==startedProject||getRevision()!==startedRevision||nextStatus.folderLabel!==startedFolder)return;
+    const project=await openProject(result.project,openTicket);session.remember(project,result,nextStatus);
     if(getProject()!==project)return;await saveAutosave?.(project);
     if(ticket===generation&&active())closeModal();toast('Проект открыт из папки');return;
    }
