@@ -21,6 +21,10 @@ export function surfaceSet(p,mode=p.editorMode??p.mode,surface,selection='all'){
 function exportOptions(p,options){
  const mode=normalizeEditorMode(options.mode??p.editorMode??p.mode);
  const opts={format:'pdf',surface:modeDefaultSurface(mode),selection:'all',blank:false,bleed:0,dpi:isCDMode(mode)?600:300,paper:'a4',copies:1,guides:false,sheet:'auto',offsetX:0,offsetY:0,duplexFlip:'long',...options,mode};
+ if(opts.cdPrintReady){
+  if(mode!=='cd-label')throw Error('PNG для печати CD доступен только для наклейки CD Label.');
+  Object.assign(opts,{format:'png',surface:'cdLabel',selection:'current',blank:false,bleed:0,dpi:600,copies:1,guides:false,sheet:'auto',offsetX:0,offsetY:0});
+ }
  if(isCDMode(mode)&&isProductionSheet(opts.sheet))throw Error('Производственные шаблоны кассет не подходят для CD. Выберите обычную раскладку CD.');
  if(['12up','12up-trim'].includes(opts.sheet)&&mode!=='label')throw Error('Раскладка на 12 наклеек предназначена для кассет.');
  if(['cd-2up','cd-letter-2up'].includes(opts.sheet)&&mode!=='cd-label')throw Error('Раскладка на два диска предназначена для CD Label.');
@@ -92,7 +96,7 @@ export async function exportProject(p,options={}){
    const page=pages[0],canvas=await raster(page.svg,page.w,page.h,page.dpi),blob=await canvasPng(canvas,page.dpi);await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);return {copiedPages:1,totalPages:pages.length};
   }
   for(const [index,page]of pages.entries()){
-   const suffix=pages.length>1&&opts.sheet!=='auto'?`page-${String(index+1).padStart(2,'0')}-${page.s}`:page.s;
+   const suffix=(pages.length>1&&opts.sheet!=='auto'?`page-${String(index+1).padStart(2,'0')}-${page.s}`:page.s)+(opts.cdPrintReady?'-print-ready':'');
    if(opts.format==='svg')download(new Blob([page.svg],{type:'image/svg+xml'}),`${name}-${suffix}.svg`);
    else{const canvas=await raster(page.svg,page.w,page.h,page.dpi);download(await canvasPng(canvas,page.dpi),`${name}-${suffix}-${page.dpi}dpi.png`)}
   }

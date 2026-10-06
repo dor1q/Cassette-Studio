@@ -29,6 +29,23 @@ test('CD panels expose their own print controls and the complete track list with
  const tracks=cdTracksPanel(p,controls);assert.equal((tracks.match(/data-track="/g)||[]).length,9);assert.match(tracks,/cd-m3u/);assert.doesNotMatch(tracks,/data-action="(?:balance|swap|track-move)"/);
 });
 
+test('CD text tools group title, contents and extra text while retaining every text field',()=>{
+ const p=createProject();
+ for(const mode of ['cd-label','cd-insert','cd-tray']){
+  const html=cdTextPanel(p,mode,modeDefaultSurface(mode),controls);
+  for(const field of ['artist','album','lyrics','production','note'])assert.equal((html.match(new RegExp(`data-bind="data\\.${field}"`,'g'))||[]).length,1);
+  assert.match(html,/<legend>Название<\/legend>/);assert.match(html,/<legend>Дополнительный текст<\/legend>/);
+  if(mode==='cd-insert')assert.equal((html.match(/data-source="(?:cdTracks|lyrics|production)"/g)||[]).length,1);
+ }
+});
+
+test('content columns are disabled only for a single sided one panel CD cover',()=>{
+ const p=createProject();p.layout.cdInsertPanels=1;p.layout.cdInsertDouble=false;
+ assert.match(cdLayoutPanel(p,'cd-insert',controls),/<fieldset[^>]*disabled><legend>Содержание вкладыша/);
+ p.layout.cdInsertDouble=true;assert.doesNotMatch(cdLayoutPanel(p,'cd-insert',controls),/<fieldset[^>]*disabled/);
+ p.layout.cdInsertDouble=false;p.layout.cdInsertPanels=2;assert.doesNotMatch(cdLayoutPanel(p,'cd-insert',controls),/<fieldset[^>]*disabled/);
+});
+
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const action=app.slice(app.indexOf('function cdAction('),app.indexOf('\nfunction uiAction('));
 function harness(mode='cd-insert'){

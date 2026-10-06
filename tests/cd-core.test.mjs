@@ -94,7 +94,7 @@ test('CD reference cover settings use label point offsets, insert fit and blurre
 });
 
 test('CD contents flow continues across its own format without repeating production or losing ordered tracks',()=>{
- const p=createProject();p.data.artist='';p.data.album='';p.data.production='Final production';p.data.lyrics='';p.data.A=album.tracks;p.data.B=[];
+ const p=createProject();p.layout.cdInsertDouble=true;p.data.artist='';p.data.album='';p.data.production='Final production';p.data.lyrics='';p.data.A=album.tracks;p.data.B=[];
  const block=(index)=>makeLayer('text',{source:'cdContents',referenceCDContent:true,cdContentIndex:index,x:0,y:0,w:110,h:30,size:3,autoFit:false,lineHeight:1.3,trackOptions:{showProduction:true}}),a=block(0),b=block(1);p.surfaces.cdFront=[a];p.surfaces.cdInside=[b];p.surfaces.cdTray=[block(0)];
  const source=boundText(p,a,'cdFront');assert.equal(source.split('Final production').length-1,1);
  const first=flowText(p,a,'cdFront'),second=flowText(p,b,'cdInside');assert.ok(first.text.includes('Track 1'));assert.ok(second.text.includes('Final production'));assert.equal(second.text.includes('Track 1 ('),false);assert.equal(second.overflow,false);

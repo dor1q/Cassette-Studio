@@ -2,12 +2,17 @@ import {esc,time,total} from './model.js';
 import {cdDimensions} from './cd-layout.js';
 
 export function cdTextPanel(project,mode,surface,{field,btn}){
- const sources=[['artist','Исполнитель'],['album','Альбом'],['cdTracks','Треки CD'],['note','Подпись'],['lyrics','Тексты песен'],['production','Выходные данные']];
- let html='<div class="row">'+sources.map(([source,label])=>btn(label,'cd-focus-text',`data-source="${source}"`)).join('')+'</div>';
- if(mode==='cd-tray')html+='<div class="row">'+(project.surfaces[surface]||[]).filter(layer=>layer.source==='cdSpine').map(layer=>btn(esc(layer.name),'select-layer',`data-id="${esc(layer.id)}"`)).join('')+'</div>';
- html+=field('Исполнитель','artist',project.data.artist)+field('Альбом','album',project.data.album)+field('Подпись / лейбл','note',project.data.note)+btn('＋ Добавить свой текст','add-text','class="wide"');
- html+='<div class="section">'+field('Тексты песен · Markdown','lyrics',project.data.lyrics,'textarea')+field('Выходные данные · Markdown','production',project.data.production,'textarea')+'</div>';
- return html+'<p class="hint">Названия и треки обновляются вместе с альбомом. Нажмите на нужный блок, чтобы показать его на макете и изменить оформление.</p>';
+ const focus=(source,label)=>btn(label,'cd-focus-text',`data-source="${source}"`);
+ let html='<fieldset class="cd-text-group"><legend>Название</legend>'+field('Исполнитель','artist',project.data.artist)+field('Альбом','album',project.data.album)+'<div class="row">'+focus('artist','Блок исполнителя')+focus('album','Блок альбома')+'</div></fieldset>';
+ html+='<fieldset class="cd-text-group"><legend>Содержание '+(mode==='cd-insert'?'вкладыша':'CD')+'</legend>'+focus('cdTracks',mode==='cd-insert'?'Выбрать содержание на макете':'Выбрать треклист')+'<p class="hint">Список треков редактируется во вкладке «Треки». В правой панели выбранного блока можно скрыть отдельные части и настроить оформление.</p>';
+ html+=field('Тексты песен · Markdown','lyrics',project.data.lyrics,'textarea');
+ if(mode!=='cd-insert')html+=focus('lyrics','Блок текстов песен');
+ html+=field('Выходные данные · Markdown','production',project.data.production,'textarea');
+ if(mode!=='cd-insert')html+=focus('production','Блок выходных данных');
+ html+='</fieldset>';
+ if(mode==='cd-tray')html+='<fieldset class="cd-text-group"><legend>Корешки</legend><div class="row">'+(project.surfaces[surface]||[]).filter(layer=>layer.source==='cdSpine').map(layer=>btn(esc(layer.name),'select-layer',`data-id="${esc(layer.id)}"`)).join('')+'</div></fieldset>';
+ html+='<fieldset class="cd-text-group"><legend>Дополнительный текст</legend>'+field('Подпись / лейбл','note',project.data.note)+focus('note','Блок подписи')+btn('＋ Добавить свой текст','add-text','class="wide"')+'</fieldset>';
+ return html;
 }
 
 export function cdTracksPanel(project,{select,check,btn}){
@@ -30,7 +35,9 @@ export function cdLayoutPanel(project,mode,{field,select,check,btn}){
  }else if(mode==='cd-insert'){
   html=select('Панели вкладыша','cdInsertPanels',layout.cdInsertPanels,[[1,'1 · передняя обложка'],[2,'2 · складной вкладыш'],[3,'3 · складной вкладыш']],'layout')+check('Двусторонний вкладыш','cdInsertDouble',layout.cdInsertDouble,'layout');
   html+=field('Высота, мм','cdInsertHeight',layout.cdInsertHeight,'number','min="100" max="130" step="0.1"','layout');
-  html+='<div class="two">'+select('Колонки содержания','columns',layout.columns,[[1,'Одна'],[2,'Две']],'layout')+field('Высота колонок, %','columnHeight',layout.columnHeight,'number','min="20" max="100" step="1"','layout')+'</div>';
+  const noContents=Number(layout.cdInsertPanels)===1&&!layout.cdInsertDouble;
+  html+=`<fieldset class="cd-content-options" ${noContents?'disabled':''}><legend>Содержание вкладыша</legend><div class="two">`+select('Колонки содержания','columns',layout.columns,[[1,'Одна'],[2,'Две']],'layout')+field('Высота колонок, %','columnHeight',layout.columnHeight,'number','min="20" max="100" step="1"','layout')+'</div></fieldset>';
+  if(noContents)html+='<p class="hint">В односторонней обложке нет панелей содержания. Включите оборот или добавьте панель для треков и текстов.</p>';
   html+='<p class="hint">Панель обложки — 120,65 мм. У вкладыша на три панели внутренний клапан чуть уже, чтобы он складывался свободно.</p>';
  }else{
   html='<div class="row">'+check('Левый корешок','cdTrayLeftSpine',layout.cdTrayLeftSpine,'layout')+check('Правый корешок','cdTrayRightSpine',layout.cdTrayRightSpine,'layout')+check('Печатать внутреннюю сторону','cdTrayDouble',layout.cdTrayDouble,'layout')+'</div>';

@@ -1,4 +1,4 @@
-import {makeLayer} from './model.js';
+import {makeLayer,clone} from './model.js';
 import {isCDMode,modeSurfaces} from './media-formats.js';
 import {autoPaintColor} from './color-paint.js';
 
@@ -8,7 +8,7 @@ const finite=(value,fallback)=>Number.isFinite(Number(value))?Number(value):fall
 const layout=project=>({...CD_DEFAULTS,...project.layout});
 export function cdLabelGeometry(project){
  const l=layout(project),outerDiameter=l.cdLabelDiameter,frame=outerDiameter+1.355667,holeDiameter=l.cdLabelHub?14.957778:l.cdLabelHole;
- return {frame,center:frame/2,outerDiameter,holeDiameter:Math.max(0,Math.min(outerDiameter-1,holeDiameter)),safeOuterDiameter:Math.max(1,outerDiameter-3.104444),safeHoleDiameter:holeDiameter+5.997778};
+ return {frame,center:frame/2,outerDiameter,holeDiameter:Math.max(0,Math.min(outerDiameter-1,holeDiameter)),safeOuterDiameter:Math.max(1,outerDiameter-3.104444),safeHoleDiameter:l.cdLabelHub?20.955:holeDiameter+5.997778};
 }
 export function cdDimensions(project,surface){
  const l=layout(project);
@@ -41,6 +41,11 @@ export function cdCutPath(project,surface,bleed=0){
  const outer=cdShapePath(project,surface,bleed);if(surface!=='cdLabel')return outer;
  const geometry=cdLabelGeometry(project),hole=Math.max(0,geometry.holeDiameter/2-bleed);
  return outer+(hole?circle(geometry.center,geometry.center,hole):'');
+}
+export function cdPrintReadyCutPath(project){
+ const {center,safeOuterDiameter,safeHoleDiameter}=cdLabelGeometry(project);
+ if(safeHoleDiameter>=safeOuterDiameter)return '';
+ return circle(center,center,safeOuterDiameter/2)+(safeHoleDiameter>0?circle(center,center,safeHoleDiameter/2):'');
 }
 export function cdLabelGuides(project){
  const geometry=cdLabelGeometry(project),{center}=geometry;
@@ -96,6 +101,7 @@ function coverFrame(project,surface){const size=cdDimensions(project,surface),fr
 export function updateCDLayout(project,mode,previousLayout){
  if(!isCDMode(mode))return;
  const referenceContents=mode==='cd-insert'&&(project.referenceCDContentTemplate?.source==='cdContents'||['cdFront','cdInside'].some(surface=>project.surfaces[surface]?.some(layer=>layer.referenceCDContent)));
+ const contentTemplate=mode==='cd-insert'&&!referenceContents?['cdFront','cdInside'].flatMap(surface=>project.surfaces[surface]||[]).find(layer=>layer.source==='cdContents'&&layer.cdContentFlow):null;
  const old={...project,layout:{...project.layout,...previousLayout},surfaces:{}},fresh={...project,surfaces:{}};
  resetCDSurfaces(old,mode,{preserveReference:true});resetCDSurfaces(fresh,mode,{preserveReference:true});
  for(const surface of modeSurfaces(project,mode)){
@@ -111,6 +117,12 @@ export function updateCDLayout(project,mode,previousLayout){
    for(const field of [...geometryKeys,'cdArc','cdArcRadius','cdContentFlow','cdContentIndex'])if(after[field]===undefined)delete layer[field];else layer[field]=after[field];
    return true;
   });
-  if(!referenceContents)for(const [key,layer]of newDefaults)if(!seen.has(key))project.surfaces[surface].push(layer);
+  if(!referenceContents)for(const [key,layer]of newDefaults)if(!seen.has(key)){
+   if(contentTemplate&&layer.source==='cdContents'&&layer.cdContentFlow){
+    if(contentTemplate.trackOptions===undefined)delete layer.trackOptions;else layer.trackOptions=clone(contentTemplate.trackOptions);
+    for(const option of ['hideArtist','hideAlbum','hideTracks','hideLyrics','hideA','hideB','showProduction'])if(contentTemplate[option]!==undefined)layer[option]=contentTemplate[option];
+   }
+   project.surfaces[surface].push(layer);
+  }
  }
 }

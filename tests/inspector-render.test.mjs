@@ -5,12 +5,13 @@ import {esc,makeLayer,panelRects,createProject} from '../src/model.js';
 import {inspectorSection,bindInspectorSections} from '../src/inspector-sections.js';
 import {groupFor} from '../src/flow-editing.js';
 import {selectionFrame} from '../src/selection-edit.js';
+import {cdContentControls} from '../src/cd-content-edit.js';
 
 // Exercise the actual inspector renderer without a browser or music service.
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const renderer=app.slice(app.indexOf('function renderInspector(){'),app.indexOf('\nfunction add('));
 
-function render(layer,{mode='jcard',project=createProject(),joinColumns=true}={}){
+function render(layer,{mode='jcard',project=createProject(),joinColumns=true,surface='outer'}={}){
  const controls=[];
  const inspector={
   innerHTML:'',addEventListener(){},
@@ -24,15 +25,16 @@ function render(layer,{mode='jcard',project=createProject(),joinColumns=true}={}
    return controls;
   }
  };
- const p=project,names=['current','$','prop','propCheck','propSelect','btn','fonts','p','esc','imageZoomControls','cropEditing','mode','panelRects','surface','albumStyleControls','syncImageZoom','inspectorSection','bindInspectorSections','editFrame','groupFor','joinColumns'];
+ const p=project,names=['current','$','prop','propCheck','propSelect','btn','fonts','p','esc','imageZoomControls','cropEditing','mode','panelRects','surface','albumStyleControls','syncImageZoom','inspectorSection','bindInspectorSections','editFrame','groupFor','joinColumns','cdContentControls'];
  const prop=(label,key,type='number',attrs='')=>`<label>${esc(label)}<${type==='textarea'?'textarea':'input'} data-prop="${key}" ${attrs}></label>`;
  const propCheck=(label,key)=>`<label><input type="checkbox" data-prop="${key}">${esc(label)}</label>`;
  const propSelect=(label,key,options)=>`<label>${esc(label)}<select data-prop="${key}">${options.map(([value,text])=>`<option value="${esc(value)}">${esc(text)}</option>`).join('')}</select></label>`;
  const btn=(label,action)=>`<button data-action="${action}">${esc(label)}</button>`;
  const values=[()=>layer,()=>inspector,prop,propCheck,propSelect,btn,['Arial'],p,esc,
-  ()=>'<input data-image-zoom type="range"><button data-action="reset-crop">Целиком</button>',false,mode,panelRects,'outer',
-  ()=>'<input data-album-style="font"><input data-album-style="size">',()=>{},inspectorSection,bindInspectorSections,()=>selectionFrame(p,layer,'outer',joinColumns),groupFor,joinColumns];
+  ()=>'<input data-image-zoom type="range"><button data-action="reset-crop">Целиком</button>',false,mode,panelRects,surface,
+  ()=>'<input data-album-style="font"><input data-album-style="size">',()=>{},inspectorSection,bindInspectorSections,()=>selectionFrame(p,layer,surface,joinColumns),groupFor,joinColumns,cdContentControls];
  new Function(...names,renderer+';renderInspector();')(...values);
+ if(!controls.length)inspector.querySelectorAll();
  return {html:inspector.innerHTML,controls};
 }
 
@@ -82,4 +84,20 @@ test('code editing is primary and locked layers retain only authorized edit acti
 
 test('empty selection keeps the selection hint without rendering any controls',()=>{
  const {html}=render(null);assert.match(html,/Выберите элемент/);assert.doesNotMatch(html,/data-prop=/);
+});
+
+test('actual CD contents inspector shows field visibility and no cassette A/B controls',()=>{
+ const p=createProject(),layer=p.surfaces.cdFront.find(layer=>layer.source==='cdContents');
+ const html=render(layer,{mode:'cd-insert',project:p,surface:'cdFront'}).html,content=section(html,'contents');
+ for(const key of ['hideArtist','hideAlbum','hideTracks','hideLyrics','showProduction'])assert.match(content,new RegExp(`data-track-option="${key}"`));
+ assert.doesNotMatch(content,/data-track-option="(?:sideA|sideB|sideText|showSide)"/);
+ assert.match(html,/data-prop="font"/);assert.match(html,/data-prop="x"/);
+});
+
+test('a locked reverse CD column disables content without disabling current typography',()=>{
+ const p=createProject(),layer=p.surfaces.cdFront.find(layer=>layer.source==='cdContents');p.surfaces.cdInside.find(layer=>layer.source==='cdContents').locked=true;
+ const {html,controls}=render(layer,{mode:'cd-insert',project:p,surface:'cdFront'});
+ assert.match(section(html,'contents'),/<fieldset[^>]*disabled/);
+ assert.equal(controls.find(control=>control.dataset.prop==='font').disabled,false);
+ assert.equal(controls.find(control=>control.dataset.prop==='x').disabled,false);
 });

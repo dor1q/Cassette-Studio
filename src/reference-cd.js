@@ -20,9 +20,9 @@ const text=(project,source,name,frame,style,more={})=>makeLayer('text',{source,n
 function colorProps(project,key){const color=project.settings.referenceSectionColors?.[key];return {color:color||project.settings.fg,referenceOwnColor:!!color}}
 const contentFrameKeys=['x','y','w','h','rotation'];
 const frameSnapshot=layer=>Object.fromEntries(contentFrameKeys.map(key=>[key,layer[key]||0]));
-function contentFrames(project){
+function contentFrames(project,{includeInside=project.layout.cdInsertDouble}={}){
  const frames=[],pad=96*REFERENCE_UNIT,gap=48*REFERENCE_UNIT,columns=project.layout.columns===2?2:1;
- for(const surface of ['cdFront',...(project.layout.cdInsertDouble?['cdInside']:[])])for(const panel of panelRects(project,surface).filter(panel=>surface!=='cdFront'||panel.index!==2)){
+ for(const surface of ['cdFront',...(includeInside?['cdInside']:[])])for(const panel of panelRects(project,surface).filter(panel=>surface!=='cdFront'||panel.index!==2)){
   const {h}=dimensions(project,surface),width=(panel.w-2*pad-(columns-1)*gap)/columns;
   for(let column=0;column<columns;column++)frames.push({surface,cdPanelIndex:panel.index,cdColumnIndex:column,x:panel.x+pad+column*(width+gap),y:pad,w:width,h:(h-2*pad)*project.layout.columnHeight/100,rotation:0});
  }
@@ -34,7 +34,8 @@ export function rebuildReferenceCDContents(project){
  if(!template||template.type!=='text'||template.source!=='cdContents')return {updated:0,created:0,removed:0,preserved:0};
  const key=(surface,layer)=>[surface,layer.cdPanelIndex,layer.cdColumnIndex||0].join(':'),oldByKey=new Map(old.map(item=>[key(item.surface,item.layer),item])),used=new Set(),fresh={cdFront:[],cdInside:[]},result={updated:0,created:0,removed:0,preserved:0};
  const untouched=layer=>!layer.locked&&layer.referenceCDContentFrame&&contentFrameKeys.every(field=>Math.abs((layer[field]||0)-(layer.referenceCDContentFrame[field]||0))<.0001);
- for(const [index,frame]of contentFrames(project).entries()){
+ const includeInside=project.layout.cdInsertDouble||old.some(item=>item.surface==='cdInside');
+ for(const [index,frame]of contentFrames(project,{includeInside}).entries()){
   const {surface,...geometry}=frame,existing=oldByKey.get(key(surface,frame)),layer=existing?.layer||{...clone(template),id:uid(),locked:false};
   used.add(existing?.layer);
   if(existing&&!untouched(layer))result.preserved++;else{Object.assign(layer,geometry);layer.referenceCDContentFrame=frameSnapshot(layer);existing?result.updated++:result.created++}
