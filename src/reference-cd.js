@@ -71,7 +71,10 @@ export function importReferenceCD(project,params,mode){
    else if(layer.source==='note')layer.visible=false;
   }
   for(const layer of project.surfaces.cdTray.filter(layer=>layer.source==='cdSpine'))if(params.has('f3')){layer.albumStyle={...referenceFont(params.get('f3'),56*REFERENCE_UNIT,REFERENCE_UNIT,{font:'Nunito Sans',weight:500}),...colorProps(project,'album')};layer.referenceAlbumOwnColor=!!project.settings.referenceSectionColors?.album}
-  project.surfaces.cdTrayInside=[];
+  const inside=panelRects(project,'cdTrayInside').find(panel=>panel.index===2),pad=120*REFERENCE_UNIT;
+  project.surfaces.cdTrayInside=project.layout.cdTrayDouble?[text(project,'production','Выходные данные внутри CD',{
+   cdPanelIndex:2,x:inside.x+pad,y:pad,w:inside.w-2*pad,h:dimensions(project,'cdTrayInside').h-2*pad
+  },{font:'Arial',size:60*REFERENCE_UNIT,fontWeight:400},{cdTrayInsideProduction:true,align:'center',opacity:.5,...colorProps(project,'back')})]:[];
   return project;
  }
  project.surfaces.cdFront=[];project.surfaces.cdInside=[];

@@ -33,7 +33,13 @@ export function canReplaceAlbumArt(project,surface){
 }
 
 export function fitCoverImage(layer){
+ delete layer.cdTrayPosterZoomBase;
  return Object.assign(layer,{fit:'meet',cropZoom:1,cropX:0,cropY:0,cropRotation:0});
+}
+
+export function albumCoverAppearance(surface){
+ if(['cdTray','cdTrayInside'].includes(surface))return {opacity:.2,blur:60*25.4/600};
+ return {opacity:String(surface||'').startsWith('label')?.5:1};
 }
 
 export function parseReferenceArtwork(value){
@@ -57,6 +63,7 @@ export function applyReferenceArtwork(project,params,naturalWidth,naturalHeight,
   if(position){
    const factor=naturalWidth>0&&naturalHeight>0?Math.max(layer.w/naturalWidth,layer.h/naturalHeight)/Math.min(layer.w/naturalWidth,layer.h/naturalHeight):1;
    const zoom=cdTray?(Number(project.layout.cdTrayPosterScale)||1.1):mode==='cd-insert'&&!parsedPosition&&layer.fit==='slice'?1.59:position.zoom;
+   if(cdTray)layer.cdTrayPosterZoomBase=1/(layer.fit!=='slice'?1:factor);
    layer.cropZoom=zoom*(label?1.06:1)/(layer.fit!=='slice'?1:factor);layer.cropX=position.x*(label||cdLabel?600/72:1);layer.cropY=position.y*(label||cdLabel?600/72:1);layer.cropRotation=position.rotation;
   }
   const opacity=Number(params.get('opacity'));
@@ -75,9 +82,8 @@ export function applyAlbumArt(project,src,target='both',options={}){
   const existing=albumArtLayer(project,surface);
   result.applied.push(surface);
   if(existing){existing.src=src;existing.category='albumCover';delete existing.referenceAssetKey;delete existing.referenceCoverIndex;fitCoverImage(existing);continue}
-  const label=surface.startsWith('label');
   const firstForeground=layers.findIndex(l=>l.category!=='background'&&l.referenceDecalLayer!=='background');
-  layers.splice(firstForeground<0?layers.length:firstForeground,0,fitCoverImage(makeLayer('image',{name:'Обложка альбома',category:'albumCover',src,...albumCoverFrame(project,surface),opacity:label?.5:1})));
+  layers.splice(firstForeground<0?layers.length:firstForeground,0,fitCoverImage(makeLayer('image',{name:'Обложка альбома',category:'albumCover',src,...albumCoverFrame(project,surface),...albumCoverAppearance(surface)})));
  }
  const upload=project.uploads.find(u=>u.category==='albumCover');
  if(upload){upload.src=src;delete upload.referenceAssetKey}else project.uploads.push({name:'Обложка альбома',category:'albumCover',src});

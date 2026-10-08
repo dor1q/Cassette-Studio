@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createProject,makeLayer,clone,dimensions,panelRects,importReference} from '../src/model.js';
-import {albumCoverFrame,albumArtLayer,fitCoverImage} from '../src/album-art.js';
+import {albumCoverFrame,albumArtLayer,fitCoverImage,albumCoverAppearance} from '../src/album-art.js';
 import {captureImageImportTarget,assertImageImportTarget} from '../src/image-import-target.js';
 import {synchronizeLabelLayers} from '../src/label-sync.js';
 
@@ -19,14 +19,14 @@ function harness(initial=fixture(),{surface='outer',mode='jcard',bitmapDecode=as
  const createImageBitmap=async f=>{await bitmapDecode(f);return {width:f.width||800,height:f.height||600,src:f.src,close:()=>calls.closed++}};
  class Image {naturalWidth=800;naturalHeight=600;async decode(){await backgroundDecode(this.src)}}
  const document={createElement:()=>{const canvas={getContext:()=>({drawImage:bmp=>{if(drawError)throw Error('Cannot draw');canvas.src=bmp.src}}),toDataURL:()=>{calls.rasters.push({w:canvas.width,h:canvas.height});return canvas.src}};return canvas}};
- return new Function('initial','initialSurface','initialMode','calls','$','document','createImageBitmap','Image','request','clone','dimensions','panelRects','makeLayer','albumCoverFrame','albumArtLayer','fitCoverImage','captureImageImportTarget','assertImageImportTarget','synchronizeLabelLayers',`
+ return new Function('initial','initialSurface','initialMode','calls','$','document','createImageBitmap','Image','request','clone','dimensions','panelRects','makeLayer','albumCoverFrame','albumArtLayer','fitCoverImage','captureImageImportTarget','assertImageImportTarget','synchronizeLabelLayers','albumCoverAppearance',`
   let p=initial,surface=initialSurface,mode=initialMode,selected=p.surfaces[surface][0]?.id||'',tab='background',uploadKind='art',imageUploadTarget=null,projectRevision=0;
   const layers=()=>p.surfaces[surface],checkpoint=()=>{calls.history.push(clone(p));projectRevision++};
   const changed=({mirrorLayers}={})=>{projectRevision++;if(mirrorLayers)synchronizeLabelLayers(p,surface);calls.saved.push(clone(p))};
   const toast=message=>calls.toasts.push(message);
   ${controller}
   return {calls,begin:beginImageUpload,upload:f=>$('imageFile').onchange({target:{files:[f],value:'file'}}),place:placeImage,use:useAlbumCover,decode:imageData,state:()=>({p,surface,mode,selected}),select:id=>selected=id,edit:fn=>{fn(p);projectRevision++},replace:next=>p=next,side:next=>surface=next,undo:()=>p=calls.history.pop()};
- `)(initial,surface,mode,calls,$,document,createImageBitmap,Image,async url=>{calls.requests.push(url);return request(url)},clone,dimensions,panelRects,makeLayer,albumCoverFrame,albumArtLayer,fitCoverImage,captureImageImportTarget,assertImageImportTarget,synchronizeLabelLayers);
+ `)(initial,surface,mode,calls,$,document,createImageBitmap,Image,async url=>{calls.requests.push(url);return request(url)},clone,dimensions,panelRects,makeLayer,albumCoverFrame,albumArtLayer,fitCoverImage,captureImageImportTarget,assertImageImportTarget,synchronizeLabelLayers,albumCoverAppearance);
 }
 
 test('actual replacement follows the layer selected when the picker opened and needs one undo',async()=>{
@@ -69,6 +69,12 @@ test('new files respect active locks and leave a locked opposite label intact',a
  const p=fixture();p.surfaces.outer[0].locked=true;const locked=harness(p);locked.begin('replace');assert.equal(locked.calls.clicked,0);assert.match(locked.calls.toasts.at(-1),/закреплена/);
  const labels=createProject();labels.layout.sync=true;labels.surfaces.labelB[0].locked=true;const before=clone(labels.surfaces.labelB),h=harness(labels,{surface:'labelA',mode:'label'});h.begin('art');await h.upload(file);
  assert.equal(albumArtLayer(labels,'labelA').src,image);assert.deepEqual(labels.surfaces.labelB,before);assert.equal(labels.layout.sync,false);assert.match(h.calls.toasts.at(-1),/другая сторона закреплена/);
+});
+test('actual CD Tray file upload fits the whole cover with a soft background on only the edited side',async()=>{
+ const p=createProject(),before=clone(p.surfaces.cdTrayInside),h=harness(p,{surface:'cdTray',mode:'cd-tray'});
+ h.begin('art');await h.upload(file);const cover=albumArtLayer(p,'cdTray');
+ assert.equal(cover.src,image);assert.equal(cover.fit,'meet');assert.equal(cover.cropZoom,1);assert.equal(cover.opacity,.2);assert.ok(Math.abs(cover.blur-60*25.4/600)<1e-9);
+ assert.deepEqual(p.surfaces.cdTrayInside,before);assert.equal(h.calls.history.length,1);assert.equal(h.calls.saved.length,1);
 });
 test('very thin images retain a nonzero canvas and decoded bitmaps close even when drawing fails',async()=>{
  const h=harness();await h.decode({...file,width:1,height:50000});assert.deepEqual(h.calls.rasters,[{w:1,h:3000}]);assert.equal(h.calls.closed,1);

@@ -40,7 +40,7 @@ test('old projects gain editable CD layouts during migration without changing ca
  const old=validateProject(createProject());delete old.editorMode;old.mode='cassette-label';old.layout.cdLabelHub='0';
  const original=clone(old.surfaces.outer).map(({id,...layer})=>layer);
  for(const key of EDITOR_SURFACES.filter(key=>key.startsWith('cd')))delete old.surfaces[key];
- const p=validateProject(old);assert.equal(p.editorMode,'label');assert.equal(p.layout.cdLabelHub,false);assert.equal(p.surfaces.cdLabel.length,4);assert.equal(p.settings.cdCapacity,80);
+ const p=validateProject(old);assert.equal(p.editorMode,'label');assert.equal(p.layout.cdLabelHub,false);assert.equal(p.surfaces.cdLabel.length,5);assert.equal(p.settings.cdCapacity,80);
  assert.deepEqual(p.surfaces.outer.map(({id,...layer})=>layer),original);
 });
 
@@ -75,9 +75,9 @@ test('changing CD panels reflows untouched templates and covers, preserving styl
  cover.locked=true;const coverBefore=clone(cover),old=clone(p.layout);p.layout.cdInsertPanels=1;updateCDLayout(p,'cd-insert',old);assert.deepEqual(cover,coverBefore);
 });
 
-test('CD spine toggles remove untouched blocks but retain locked or manually placed frames',()=>{
+test('CD spine toggles preserve blocks and hide disabled spines from rendering',()=>{
  const p=createProject(),left=p.surfaces.cdTray.find(layer=>layer.source==='cdSpine'&&layer.cdPanelIndex===0),right=p.surfaces.cdTray.find(layer=>layer.source==='cdSpine'&&layer.cdPanelIndex===1);left.locked=true;const saved=clone(left),old=clone(p.layout);
- p.layout.cdTrayLeftSpine=false;p.layout.cdTrayRightSpine=false;updateCDLayout(p,'cd-tray',old);assert.deepEqual(p.surfaces.cdTray.find(layer=>layer.id===left.id),saved);assert.equal(p.surfaces.cdTray.some(layer=>layer.id===right.id),false);
+ p.layout.cdTrayLeftSpine=false;p.layout.cdTrayRightSpine=false;updateCDLayout(p,'cd-tray',old);assert.deepEqual(p.surfaces.cdTray.find(layer=>layer.id===left.id),saved);assert.equal(p.surfaces.cdTray.some(layer=>layer.id===right.id),true);const hidden=renderSvg(p,'cdTray',{guides:false,editing:true}).svg;assert.equal(hidden.includes(`data-layer="${left.id}"`),false);assert.equal(hidden.includes(`data-layer="${right.id}"`),false);
  const before=clone(p.layout);p.layout.cdTrayRightSpine=true;updateCDLayout(p,'cd-tray',before);assert.equal(p.surfaces.cdTray.filter(layer=>layer.source==='cdSpine').length,2);
 });
 

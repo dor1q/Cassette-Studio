@@ -56,6 +56,17 @@ function insertContents(project,surface,panels,height){
  const frontCount=Math.max(0,Math.round(project.layout.cdInsertPanels||2)-1),columns=project.layout.columns===2?2:1,columnHeight=Math.max(.2,Math.min(1,(Number(project.layout.columnHeight)||100)/100));
  return panels.flatMap((panel,index)=>Array.from({length:columns},(_,column)=>{const width=(panel.w-14-4*(columns-1))/columns;return text(project,'cdContents',{name:'Содержание CD · '+panel.name+(columns===2?' · колонка '+(column+1):''),cdPanelIndex:panel.index,cdColumnIndex:column,cdContentFlow:true,cdContentIndex:((surface==='cdInside'?frontCount:0)+index)*columns+column,x:panel.x+7+column*(width+4),y:7,w:width,h:(height-14)*columnHeight,size:3,autoFit:false,lineHeight:1.4,trackOptions:{showSide:false,showProduction:true}})}));
 }
+function trayTracks(project,panel,height){
+ const columns=project.layout.columns===2?2:1,gap=4,width=(panel.w-14-gap*(columns-1))/columns,columnHeight=Math.max(.2,Math.min(1,(Number(project.layout.columnHeight)||100)/100));
+ return Array.from({length:columns},(_,column)=>text(project,'cdTracks',{name:'Треки CD'+(columns===2?' · колонка '+(column+1):''),cdPanelIndex:2,cdColumnIndex:column,cdTrayTrackFlow:true,x:panel.x+7+column*(width+gap),y:36,w:width,h:(height-56)*columnHeight,size:3,lineHeight:1.4}));
+}
+export function cdTrayTrackActive(project,layer,surface){
+ return !surface.startsWith('cdTray')||layer.source!=='cdTracks'||!layer.cdTemplate&&!layer.cdTrayTrackFlow||(layer.cdColumnIndex||0)<(project.layout.columns===2?2:1);
+}
+export function makeCDProductionLayer(project){
+ const {w}=cdDimensions(project,'cdLabel'),point=25.4/72,size=6*point;
+ return text(project,'production',{x:w*.1,y:91.304*point-size*.9,w:w*.8,h:size*1.4,size,align:'center'});
+}
 export function updateCDTrackLayout(project){
  const layer=project.surfaces.cdLabel?.find(layer=>layer.source==='cdTracks'&&!layer.locked);if(!layer)return;
  const geometry=cdLabelGeometry(project),d=geometry.frame,kind=project.layout.cdTrackLayout||'bottom';
@@ -73,7 +84,8 @@ export function resetCDSurfaces(project,mode,{preserveReference=false}={}){
   const {w,h}=cdDimensions(project,surface),panels=cdPanelRects(project,surface),front=panels.find(panel=>panel.index===2)||{x:0,w};
   if(surface==='cdLabel')project.surfaces[surface]=[
    text(project,'artist',{x:w*.2,y:h*.14,w:w*.6,h:9,size:14*25.4/72,bold:true,align:'center'}),
-   text(project,'album',{x:w*.2,y:h*.23,w:w*.6,h:8,size:9*25.4/72,italic:true,align:'center'}),
+   text(project,'album',{x:w*.2,y:(77.304-9*.9)*25.4/72,w:w*.6,h:8,size:9*25.4/72,italic:true,align:'center'}),
+   makeCDProductionLayer(project),
    text(project,'cdTracks',{x:w*.2,y:h*.72,w:w*.6,h:h*.19,size:2.2,align:'center',lineHeight:1.3}),
    text(project,'note',{x:w*.3,y:h*.93,w:w*.4,h:4,size:1.8,align:'center'})
   ];
@@ -86,7 +98,7 @@ export function resetCDSurfaces(project,mode,{preserveReference=false}={}){
   else project.surfaces[surface]=[
    text(project,'artist',{cdPanelIndex:2,x:front.x+7,y:8,w:front.w-14,h:10,size:5,bold:true}),
    text(project,'album',{cdPanelIndex:2,x:front.x+7,y:21,w:front.w-14,h:10,size:4}),
-   text(project,'cdTracks',{cdPanelIndex:2,x:front.x+7,y:36,w:front.w-14,h:h-56,size:3,lineHeight:1.4}),
+   ...trayTracks(project,front,h),
    text(project,'note',{cdPanelIndex:2,x:front.x+7,y:h-15,w:front.w-14,h:6,size:2.2}),
    ...panels.filter(panel=>panel.index!==2).map(panel=>text(project,'cdSpine',{referenceSpine:true,cdPanelIndex:panel.index,name:panel.name,x:panel.x+panel.w*.75,y:5,w:h-10,h:panel.w*.55,size:2.6,rotation:90,align:'center'}))
   ];
@@ -96,8 +108,17 @@ export function resetCDSurfaces(project,mode,{preserveReference=false}={}){
 }
 const geometryKeys=['x','y','w','h','rotation'];
 const matchesFrame=(layer,frame)=>geometryKeys.every(key=>Math.abs((layer[key]||0)-(frame[key]||0))<.0001);
-const templateKey=layer=>JSON.stringify([layer.source,layer.cdPanelIndex??null,layer.flowIndex??null,layer.cdColumnIndex??null]);
+const templateKey=layer=>JSON.stringify([layer.source,layer.cdPanelIndex??null,layer.flowIndex??null,layer.cdColumnIndex??(layer.source==='cdTracks'&&layer.cdTemplate?0:null)]);
 function coverFrame(project,surface){const size=cdDimensions(project,surface),front=cdPanelRects(project,surface).find(panel=>panel.index===2);return {x:front?.x||0,y:0,w:front?.w||size.w,h:size.h}}
+function latentSpine(project,surface,index){
+ const option=index===0?'cdTrayLeftSpine':'cdTrayRightSpine',shown={...project,layout:{...project.layout,[option]:true},surfaces:{}};resetCDSurfaces(shown,'cd-tray',{preserveReference:true});
+ return shown.surfaces[surface].find(layer=>layer.source==='cdSpine'&&layer.cdPanelIndex===index);
+}
+function latentTrayColumn(project,surface,index){
+ const shown={...project,layout:{...project.layout,columns:2}};
+ return trayTracks(shown,cdPanelRects(shown,surface).find(panel=>panel.index===2),cdDimensions(shown,surface).h)[index];
+}
+const trayStyleKeys=['font','fontWeight','fontStretch','size','color','bold','italic','uppercase','smallcaps','align','lineHeight','spacing','outline','outlineColor','shadow','shadowColor','opacity','visible','autoFit','referenceOwnColor','hideA','hideB','hideTracks','showProduction'];
 export function updateCDLayout(project,mode,previousLayout){
  if(!isCDMode(mode))return;
  const referenceContents=mode==='cd-insert'&&(project.referenceCDContentTemplate?.source==='cdContents'||['cdFront','cdInside'].some(surface=>project.surfaces[surface]?.some(layer=>layer.referenceCDContent)));
@@ -107,20 +128,33 @@ export function updateCDLayout(project,mode,previousLayout){
  for(const surface of modeSurfaces(project,mode)){
   const oldDefaults=new Map(old.surfaces[surface].map(layer=>[templateKey(layer),layer])),newDefaults=new Map(fresh.surfaces[surface].map(layer=>[templateKey(layer),layer])),seen=new Set();
   const oldCover=coverFrame(old,surface),nextCover=coverFrame(project,surface),layers=project.surfaces[surface]||[];
+  const trayTemplate=mode==='cd-tray'?layers.find(layer=>layer.type==='text'&&layer.source==='cdTracks'&&(layer.cdTemplate||layer.cdTrayTrackFlow)):null;
+  const legacyTray=mode==='cd-tray'?{...old,layout:{...old.layout,columns:1,columnHeight:100}}:null;
   project.surfaces[surface]=layers.filter(layer=>{
    if(layer.type==='image'&&['albumCover','art'].includes(layer.category)&&!layer.locked&&matchesFrame(layer,oldCover))Object.assign(layer,nextCover);
    if(!layer.cdTemplate)return true;
-   const key=templateKey(layer),before=oldDefaults.get(key),after=newDefaults.get(key);seen.add(key);
-   if(layer.locked||!before||!matchesFrame(layer,before))return true;
+   const key=templateKey(layer);let before=oldDefaults.get(key),after=newDefaults.get(key);seen.add(key);
+   if(mode==='cd-tray'&&layer.source==='cdSpine'&&[0,1].includes(layer.cdPanelIndex)){
+    before||=latentSpine(old,surface,layer.cdPanelIndex);after||=latentSpine(project,surface,layer.cdPanelIndex);
+   }
+   if(mode==='cd-tray'&&layer.source==='cdTracks'&&layer.cdColumnIndex===1){
+    before||=latentTrayColumn(old,surface,1);after||=latentTrayColumn(project,surface,1);
+   }
+   const legacyFrame=legacyTray&&layer.source==='cdTracks'&&!layer.cdTrayTrackFlow&&layer.cdColumnIndex===undefined?trayTracks(legacyTray,cdPanelRects(legacyTray,surface).find(panel=>panel.index===2),cdDimensions(legacyTray,surface).h)[0]:null;
+   if(layer.locked||!before||!matchesFrame(layer,before)&&!(legacyFrame&&matchesFrame(layer,legacyFrame)))return true;
    if(!after)return false;
    if(layer.align===before.align)layer.align=after.align;
-   for(const field of [...geometryKeys,'cdArc','cdArcRadius','cdContentFlow','cdContentIndex'])if(after[field]===undefined)delete layer[field];else layer[field]=after[field];
+   for(const field of [...geometryKeys,'cdArc','cdArcRadius','cdContentFlow','cdContentIndex','cdTrayTrackFlow','cdColumnIndex'])if(after[field]===undefined)delete layer[field];else layer[field]=after[field];
    return true;
   });
-  if(!referenceContents)for(const [key,layer]of newDefaults)if(!seen.has(key)){
+  if(!referenceContents&&(mode!=='cd-tray'||layers.some(layer=>layer.cdTemplate)))for(const [key,layer]of newDefaults)if(!seen.has(key)){
    if(contentTemplate&&layer.source==='cdContents'&&layer.cdContentFlow){
     if(contentTemplate.trackOptions===undefined)delete layer.trackOptions;else layer.trackOptions=clone(contentTemplate.trackOptions);
     for(const option of ['hideArtist','hideAlbum','hideTracks','hideLyrics','hideA','hideB','showProduction'])if(contentTemplate[option]!==undefined)layer[option]=contentTemplate[option];
+   }
+   if(trayTemplate&&layer.source==='cdTracks'&&layer.cdTrayTrackFlow){
+    if(trayTemplate.trackOptions===undefined)delete layer.trackOptions;else layer.trackOptions=clone(trayTemplate.trackOptions);
+    for(const option of trayStyleKeys)if(trayTemplate[option]!==undefined)layer[option]=clone(trayTemplate[option]);
    }
    project.surfaces[surface].push(layer);
   }

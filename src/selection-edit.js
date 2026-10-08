@@ -2,6 +2,7 @@ import {groupFor,frameFor,captureGroup,applyFrame,patchGroup,copyGroup} from './
 import {markReferenceGeometry,referenceFlowCopy} from './reference-flow.js';
 import {clone,uid} from './model.js';
 import {rotateLayer} from './transforms.js';
+import {flowText} from './render.js';
 
 export function selectionGroup(project,layer,surface,joined=true){return joined?groupFor(project,layer,surface):null}
 export function selectionFrame(project,layer,surface,joined=true){return frameFor(selectionGroup(project,layer,surface,joined))||layer}
@@ -39,6 +40,12 @@ export function duplicateSelection(project,layer,surface,{joined=true,dx=3,dy=3}
  if(group)return copyGroup(group,{dx,dy});
  if(!layer)return [];
  const copy={...referenceFlowCopy(layer,surface),id:uid(),name:layer.name+' копия',x:layer.x+dx,y:layer.y+dy};
+ if(layer.source==='cdTracks'&&surface.startsWith('cdTray')&&(layer.cdTrayTrackFlow||layer.cdTemplate)||layer.source==='cdContents'&&(layer.cdContentFlow||layer.referenceCDContent)){
+  // A copied column keeps its visible text independently of the album flow.
+  // Structural changes must never consume or move this manual copy.
+  copy.text=flowText(project,layer,surface).text;
+  for(const key of ['source','cdTemplate','cdTrayTrackFlow','cdContentFlow','referenceCDContent','cdPanelIndex','cdColumnIndex','cdContentIndex','referenceCDContentFrame'])delete copy[key];
+ }
  delete copy.referenceFlowEditGroup;
  if(copy.source==='referenceContents')delete copy.referenceBlockCopy;
  // A user-created copy is a manual logo choice. Its bytes and styling stay
