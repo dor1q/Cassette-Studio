@@ -103,8 +103,8 @@ export async function exportProject(p,options={}){
   return;
  }
  const {items,options:preparedOptions,production}=prepareExport(p,opts),canvases=new Map();
- for(const item of items){if(production&&canvases.has(item.svg))item.canvas=canvases.get(item.svg);else{item.canvas=await raster(item.svg,item.w,item.h,production?item.dpi:opts.dpi);if(production)canvases.set(item.svg,item.canvas)}}
  const plan=production?{w:items[0].w,h:items[0].h,pages:items.map((r,item)=>[{item,x:0,y:0,rotation:r.rotation||0}])}:printLayout(items,preparedOptions);
+ for(const item of items){if(production&&canvases.has(item.svg))item.canvas=canvases.get(item.svg);else{item.canvas=await raster(item.svg,item.w,item.h,production?item.dpi:opts.dpi);if(production)canvases.set(item.svg,item.canvas)}}
  if(opts.format==='print'){
   const host=document.getElementById('printarea');host.innerHTML='';
   let style=document.getElementById('print-page-style');if(!style){style=document.createElement('style');style.id='print-page-style';document.head.append(style)}

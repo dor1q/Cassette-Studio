@@ -9,7 +9,7 @@ export function printLayout(items,{mode='jcard',paper='a4',copies=1,bleed=0,shee
  if(sheet==='12up'&&mode==='label')[w,h]=sizes.letter;
  if(sheet==='cd-letter-2up')[w,h]=sizes.letter;
  if(folded&&items[0].w>w-20&&items[0].w<=h-20)[w,h]=[h,w];
- const pages=[[]];const add=(item,x,y,rotation=0,clip)=>pages.at(-1).push({item,x:x+Number(offsetX),y:y+Number(offsetY),rotation,...(clip?{clip:{...clip,x:clip.x+Number(offsetX),y:clip.y+Number(offsetY)}}:{})});
+ const pages=[[]];const add=(item,x,y,rotation=0,clip,dx=Number(offsetX),dy=Number(offsetY))=>pages.at(-1).push({item,x:x+dx,y:y+dy,rotation,...(clip?{clip:{...clip,x:clip.x+dx,y:clip.y+dy}}:{})});
  copies=Math.max(1,Math.min(30,Math.floor(Number(copies)||1)));
  if(sheet==='cd-letter-2up'){
   if(Number(offsetX)||Number(offsetY))throw Error('В шаблоне OL1200 / Avery 8692 позиции фиксированы. Уберите сдвиг печати.');
@@ -29,9 +29,13 @@ export function printLayout(items,{mode='jcard',paper='a4',copies=1,bleed=0,shee
    // as the inside of a complete pair. Unnamed legacy items retain pair order.
    const reverse=r.s==='inner'||r.s==='cdInside'||r.s==='cdTrayInside'||(folded&&!r.s&&i%2===1);
    const rotate=reverse&&((w>h&&duplexFlip==='long')||(w<=h&&duplexFlip==='short'));
+   // CD fronts and backs must retain the same physical displacement after
+   // the paper is flipped. Reflect the reverse offset on the binding axis.
+   const cdReverse=reverse&&(mode==='cd-insert'||mode==='cd-tray');
+   const dx=Number(offsetX)*(cdReverse&&!rotate?-1:1),dy=Number(offsetY)*(cdReverse&&rotate?-1:1);
    for(let slot=0;slot<Math.min(slots,copies-c);slot++){
     const y=slots===1?(h-r.h)/2:(h-2*r.h-10)/2+slot*(r.h+10);
-    add(i,(w-r.w)/2,rotate?h-r.h-y:y,rotate?180:0);
+    add(i,(w-r.w)/2,rotate?h-r.h-y:y,rotate?180:0,undefined,dx,dy);
    }
   }
  }else if(sheet==='12up'){

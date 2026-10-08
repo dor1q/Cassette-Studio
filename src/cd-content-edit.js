@@ -3,18 +3,19 @@ const hideOptions=['hideArtist','hideAlbum','hideTracks','hideLyrics'];
 
 export function cdContentPeers(project,layer,surface){
  if(!layer||layer.type!=='text'||!['cdContents','cdTracks'].includes(layer.source))return [];
- if(layer.source==='cdTracks')return surface.startsWith('cdTray')&&(layer.cdTrayTrackFlow||layer.cdTemplate)?[...new Set([layer,...(project.surfaces[surface]||[]).filter(peer=>peer.type==='text'&&peer.source==='cdTracks'&&(peer.cdTrayTrackFlow||peer.cdTemplate))])]:[layer];
+ if(layer.referenceBlockCopy)return [layer];
+ if(layer.source==='cdTracks')return surface.startsWith('cdTray')&&(layer.cdTrayTrackFlow||layer.cdTemplate)?[...new Set([layer,...(project.surfaces[surface]||[]).filter(peer=>!peer.referenceBlockCopy&&peer.type==='text'&&peer.source==='cdTracks'&&(peer.cdTrayTrackFlow||peer.cdTemplate))])]:[layer];
  if(!layer.referenceCDContent&&!layer.cdContentFlow)return [layer];
  const family=surface.startsWith('cdTray')?['cdTray','cdTrayInside']:['cdFront','cdInside'];
  const marker=layer.referenceCDContent?'referenceCDContent':'cdContentFlow';
- return [...new Set([layer,...family.flatMap(face=>project.surfaces[face]||[]).filter(peer=>peer.type==='text'&&peer.source==='cdContents'&&peer[marker])])];
+ return [...new Set([layer,...family.flatMap(face=>project.surfaces[face]||[]).filter(peer=>!peer.referenceBlockCopy&&peer.type==='text'&&peer.source==='cdContents'&&peer[marker])])];
 }
 export function canEditCDContent(project,layer,surface){
  const peers=cdContentPeers(project,layer,surface);return peers.length>0&&peers.every(peer=>!peer.locked);
 }
 function targets(project,layer,surface){
  const peers=cdContentPeers(project,layer,surface);
- if(layer.referenceCDContent&&project.referenceCDContentTemplate)peers.push(project.referenceCDContentTemplate);
+ if(!layer.referenceBlockCopy&&layer.referenceCDContent&&project.referenceCDContentTemplate)peers.push(project.referenceCDContentTemplate);
  return peers;
 }
 export function setCDContentOption(project,layer,surface,key,value){

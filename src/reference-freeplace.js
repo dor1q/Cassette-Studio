@@ -2,6 +2,7 @@ import {clone,uid,dimensions} from './model.js';
 import {referenceFont,referenceCenterX,REFERENCE_UNIT,referencePixelUnit} from './reference-format.js';
 import {isCDMode} from './media-formats.js';
 import {referenceFlowCopy} from './reference-flow.js';
+import {flowText} from './render.js';
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const MAX_BUNDLE=30000,MAX_BLOCKS=80,validRef=ref=>typeof ref==='string'&&/^[a-z0-9]+-[a-z0-9]+$/i.test(ref)&&ref.length<=200;
 const validToken=token=>typeof token==='string'&&/^[a-z0-9-]{1,100}$/i.test(token);
@@ -71,6 +72,14 @@ export function applyReferenceBlocks(project,params,mode='jcard',{pending=false,
   const layers=project.surfaces[surface],original=baselines.get(surface+'|'+entry.ref)||[];
   if(!original.length){unsupported.push(entry.ref);continue}
   const targets=entry.copy>1?original.map(l=>({...referenceFlowCopy(l),id:uid(),name:l.name+' · копия '+entry.copy,referenceBlockCopy:entry.copy})):original.map(l=>layers.find(t=>t.id===l.id));
+  if(entry.copy>1&&isCDMode(mode))for(const [index,copy]of targets.entries()){
+   delete copy.cdTemplate;delete copy.referenceCDStandard;
+   const source=original[index];
+   if(source.source==='cdTracks'&&(source.cdTemplate||source.cdTrayTrackFlow)||source.source==='cdContents'&&(source.referenceCDContent||source.cdContentFlow)){
+    copy.text=flowText(project,source,surface).text;
+    for(const key of ['source','cdTemplate','cdTrayTrackFlow','referenceCDTrayTrack','referenceCDTrayTrackFrame','cdContentFlow','referenceCDContent','cdPanelIndex','cdColumnIndex','cdContentIndex','referenceCDContentFrame'])delete copy[key];
+   }
+  }
   const W=dimensions(project,surface).w,H=dimensions(project,surface).h,baseWidth=mode==='label'||mode==='cd-tray'?W:mode==='cd-insert'?8476*REFERENCE_UNIT:406.4,scale=entry.scale/100;
   const points=original.flatMap(l=>{const r=l.rotation*Math.PI/180;return [[0,0],[l.w,0],[0,l.h],[l.w,l.h]].map(([x,y])=>[l.x+x*Math.cos(r)-y*Math.sin(r),l.y+x*Math.sin(r)+y*Math.cos(r)])});
   const left=Math.min(...points.map(p=>p[0])),right=Math.max(...points.map(p=>p[0])),top=Math.min(...points.map(p=>p[1])),bottom=Math.max(...points.map(p=>p[1]));

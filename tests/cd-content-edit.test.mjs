@@ -50,7 +50,7 @@ test('all CD visibility options preserve data and are restored by the actual res
  for(const layer of contents(p))assert.equal(model.boundText(p,layer,'cdFront'),'CREDITSTOKEN');
  h.input('showProduction',false);assert.equal(model.boundText(p,contents(p)[0],'cdFront'),'');
  h.reset();assert.deepEqual(p.data,data);assert.deepEqual(p.surfaces.outer,cassette);assert.equal(h.history.length,6);
- for(const layer of contents(p))assert.match(model.boundText(p,layer,'cdFront'),/ARTISTTOKEN.*ALBUMTOKEN.*TRACKTOKEN.*LYRICSTOKEN.*CREDITSTOKEN/s);
+ for(const layer of contents(p))assert.match(model.boundText(p,layer,'cdFront'),/ARTISTTOKEN.*ALBUMTOKEN.*LYRICSTOKEN.*Tracklist.*TRACKTOKEN.*CREDITSTOKEN/s);
 });
 test('reference template and newly created panels inherit content options',()=>{
  const p=project(true),h=harness(p);h.input('numbers',false);h.input('hideLyrics',true);

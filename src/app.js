@@ -16,6 +16,7 @@ import {cdLabelSectionState,canSetCDLabelSection,setCDLabelSection,ensureCDLabel
 import {cdTrayPosterState,setCDTrayPoster,applyOriginalCDTrayPoster} from './cd-tray-poster.js';
 import {syncCDTools} from './cd-tool-sync.js';
 import {cdContentControls,canEditCDContent,setCDContentOption,resetCDContentOptions} from './cd-content-edit.js';
+import {resetCDStandardBlocks} from './cd-standard-reset.js';
 import {cdTracks,replaceCDTracks,editCDTrack,moveCDTrack,deleteCDTrack,addCDTrack} from './cd-track-editing.js';
 import {albumTextStyle,changeAlbumTextStyle,inheritAlbumTextColor,resetAlbumTextStyle} from './spine-style.js';
 import {coverGalleryPicker} from './cover-gallery-picker.js';
@@ -268,7 +269,7 @@ function cdAction(action,button){
  if(action==='cd-bulk'){modal('Треки CD',`<p class="hint">Один трек на строку. Длительность в скобках: (3:45).</p><textarea id="cdBulk" rows="15">${esc(serializeTracks(cdTracks(p)))}</textarea>${btn('Применить','cd-apply-bulk','class="primary wide"')}`);return}
  if(action==='cd-m3u'){beginM3UUpload('cd');return}
  if(action==='cd-standard'){checkpoint(true);const previous=clone(p.layout);for(const [key,value]of Object.entries(CD_DEFAULTS))if(mode==='cd-label'?(key.startsWith('cdLabel')||key==='cdTrackLayout'):mode==='cd-insert'?key.startsWith('cdInsert'):key.startsWith('cdTray')||key==='cdSpine')p.layout[key]=value;updateCDLayout(p,mode,previous);if(mode==='cd-label')updateCDTrackLayout(p);rebuildReferenceCDContents(p);surface=modeDefaultSurface(mode);selected='';full();changed();return}
- if(action==='cd-reset-blocks'){checkpoint(true);resetCDSurfaces(p,mode);selected='';full();changed();toast('Стандартные блоки переразмещены. Ctrl+Z отменяет.');return}
+ if(action==='cd-reset-blocks'){checkpoint(true);const result=resetCDStandardBlocks(p,mode);selected='';full();changed();toast('Стандартные блоки переразмещены. Свои картинки и текст сохранены.'+(result.locked?' Закреплённые блоки сохранены.':'')+' Ctrl+Z отменяет.');return}
  if(action==='cd-track-up'||action==='cd-track-down'){const target=index+(action==='cd-track-up'?-1:1);if(target<0||target>=cdTracks(p).length)return;checkpoint(true);moveCDTrack(p,index,target)}
  else if(action==='cd-track-delete'){if(!cdTracks(p)[index])return;checkpoint(true);deleteCDTrack(p,index)}
  else if(action==='cd-add-track'){checkpoint(true);addCDTrack(p)}

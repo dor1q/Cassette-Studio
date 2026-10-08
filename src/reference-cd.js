@@ -1,5 +1,5 @@
 import {makeLayer,dimensions,panelRects,clamp,clone,uid} from './model.js';
-import {resetCDSurfaces,updateCDTrackLayout} from './cd-layout.js';
+import {resetCDSurfaces,updateCDTrackLayout,cdReferenceTrayTrackFrame} from './cd-layout.js';
 import {REFERENCE_UNIT,referenceFont,referenceFlags} from './reference-format.js';
 
 const POINT=25.4/72;
@@ -16,7 +16,7 @@ export function decodeReferenceCD(params,mode){
   columns:mode==='cd-insert'&&insert==='s1'?1:params.get('dc')==='1'||params.get('dc')==='2'?2:1,
   columnHeight:number(params.get('ch'),100,20,100),spineTwoLines:params.get('s2l')==='1'};
 }
-const text=(project,source,name,frame,style,more={})=>makeLayer('text',{source,name,...frame,...style,color:project.settings.fg,autoFit:false,lineHeight:1.4,...more});
+const text=(project,source,name,frame,style,more={})=>makeLayer('text',{source,name,referenceCDStandard:true,...frame,...style,color:project.settings.fg,autoFit:false,lineHeight:1.4,...more});
 function colorProps(project,key){const color=project.settings.referenceSectionColors?.[key];return {color:color||project.settings.fg,referenceOwnColor:!!color}}
 const contentFrameKeys=['x','y','w','h','rotation'];
 const frameSnapshot=layer=>Object.fromEntries(contentFrameKeys.map(key=>[key,layer[key]||0]));
@@ -30,7 +30,7 @@ function contentFrames(project,{includeInside=project.layout.cdInsertDouble}={})
 }
 export function rebuildReferenceCDContents(project){
  if(project.editorMode!=='cd-insert')return {updated:0,created:0,removed:0,preserved:0};
- const old=['cdFront','cdInside'].flatMap(surface=>(project.surfaces[surface]||[]).filter(layer=>layer.referenceCDContent).map(layer=>({surface,layer}))),template=old[0]?.layer||project.referenceCDContentTemplate;
+ const old=['cdFront','cdInside'].flatMap(surface=>(project.surfaces[surface]||[]).filter(layer=>layer.referenceCDContent&&!layer.referenceBlockCopy).map(layer=>({surface,layer}))),template=old[0]?.layer||project.referenceCDContentTemplate;
  if(!template||template.type!=='text'||template.source!=='cdContents')return {updated:0,created:0,removed:0,preserved:0};
  const key=(surface,layer)=>[surface,layer.cdPanelIndex,layer.cdColumnIndex||0].join(':'),oldByKey=new Map(old.map(item=>[key(item.surface,item.layer),item])),used=new Set(),fresh={cdFront:[],cdInside:[]},result={updated:0,created:0,removed:0,preserved:0};
  const untouched=layer=>!layer.locked&&layer.referenceCDContentFrame&&contentFrameKeys.every(field=>Math.abs((layer[field]||0)-(layer.referenceCDContentFrame[field]||0))<.0001);
@@ -38,12 +38,12 @@ export function rebuildReferenceCDContents(project){
  for(const [index,frame]of contentFrames(project,{includeInside}).entries()){
   const {surface,...geometry}=frame,existing=oldByKey.get(key(surface,frame)),layer=existing?.layer||{...clone(template),id:uid(),locked:false};
   used.add(existing?.layer);
-  if(existing&&!untouched(layer))result.preserved++;else{Object.assign(layer,geometry);layer.referenceCDContentFrame=frameSnapshot(layer);existing?result.updated++:result.created++}
-  layer.cdContentIndex=index;layer.name='Содержание CD · блок '+(index+1);fresh[surface].push(layer);
+  if(existing&&!untouched(layer))result.preserved++;else{Object.assign(layer,geometry);layer.referenceCDContentFrame=frameSnapshot(layer);layer.cdContentIndex=index;existing?result.updated++:result.created++}
+  if(!existing)layer.name='Содержание CD · блок '+(index+1);fresh[surface].push(layer);
  }
- for(const {surface,layer}of old)if(!used.has(layer)){if(untouched(layer))result.removed++;else{layer.cdContentIndex=fresh.cdFront.length+fresh.cdInside.length;fresh[surface].push(layer);result.preserved++}}
+ for(const {surface,layer}of old)if(!used.has(layer)){fresh[surface].push(layer);result.preserved++}
  for(const surface of ['cdFront','cdInside']){
-  const layers=project.surfaces[surface]||[],at=layers.findIndex(layer=>layer.referenceCDContent),rest=layers.filter(layer=>!layer.referenceCDContent);rest.splice(at<0?rest.length:Math.min(at,rest.length),0,...fresh[surface]);project.surfaces[surface]=rest;
+  const layers=project.surfaces[surface]||[],at=layers.findIndex(layer=>layer.referenceCDContent&&!layer.referenceBlockCopy),rest=layers.filter(layer=>!layer.referenceCDContent||layer.referenceBlockCopy);rest.splice(at<0?rest.length:Math.min(at,rest.length),0,...fresh[surface]);project.surfaces[surface]=rest;
  }
  return result;
 }
@@ -65,9 +65,13 @@ export function importReferenceCD(project,params,mode){
  const surface=mode==='cd-tray'?'cdTray':'cdFront',styles=mode==='cd-tray'?{content:referenceFont(params.get('fb'),72*REFERENCE_UNIT*.75,REFERENCE_UNIT,{font:'Nunito Sans',weight:400}),spine:referenceFont(params.get('f2'),56*REFERENCE_UNIT,REFERENCE_UNIT,{font:'Nunito Sans',weight:500})}:{content:referenceFont(params.get('fi'),48*REFERENCE_UNIT,REFERENCE_UNIT,{font:'Futura',weight:700})};
  if(mode==='cd-tray'){
   for(const layer of project.surfaces.cdTray){
+   layer.referenceCDStandard=true;
    if(layer.source==='cdSpine')Object.assign(layer,styles.spine,colorProps(project,'spine'),{referenceBlockKey:layer.name==='Левый корешок'?'spineText1':'spineText2',hideArtist:!!(hidden&1),hideAlbum:!!(hidden&2),spineTwoLines:project.layout.spineTwoLines,visible:!(hidden&1&&hidden&2)});
-   else if(layer.source==='cdTracks')Object.assign(layer,styles.content,colorProps(project,'back'),{visible:!(hidden&4),trackOptions:{inlineTracks:false,showSide:false,showProduction:true},hideA:!!(hidden&4),hideB:!!(hidden&8)});
-   else if(layer.source==='artist'||layer.source==='album')Object.assign(layer,styles.content,colorProps(project,layer.source==='artist'?'back':'album'),{visible:!(hidden&(layer.source==='artist'?1:2)),size:styles.content.size*(layer.source==='artist'?1.4:1.1)});
+   else if(layer.source==='cdTracks'){
+    Object.assign(layer,styles.content,colorProps(project,'back'),{visible:!(hidden&4),align:'left',lineHeight:1.5,referenceCDTrayTrack:true,trackOptions:{inlineTracks:false,showSide:false,showProduction:true},hideA:!!(hidden&4),hideB:!!(hidden&8)});
+    Object.assign(layer,cdReferenceTrayTrackFrame(project,'cdTray',layer));layer.referenceCDTrayTrackFrame=frameSnapshot(layer);
+   }
+   else if(layer.source==='artist'||layer.source==='album')Object.assign(layer,styles.content,colorProps(project,layer.source==='artist'?'back':'album'),{visible:false,size:styles.content.size*(layer.source==='artist'?1.4:1.1)});
    else if(layer.source==='note')layer.visible=false;
   }
   for(const layer of project.surfaces.cdTray.filter(layer=>layer.source==='cdSpine'))if(params.has('f3')){layer.albumStyle={...referenceFont(params.get('f3'),56*REFERENCE_UNIT,REFERENCE_UNIT,{font:'Nunito Sans',weight:500}),...colorProps(project,'album')};layer.referenceAlbumOwnColor=!!project.settings.referenceSectionColors?.album}

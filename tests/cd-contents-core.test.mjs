@@ -39,7 +39,7 @@ test('CD content checkbox choices change the native exported artwork without mut
 
 function flowFixture(front,back,flag){
  const p=createProject();Object.assign(p.data,{artist:'',album:'',lyrics:'',production:'PRODUCTION-END',A:Array.from({length:12},(_,i)=>({title:'TRACK-'+String(i+1).padStart(2,'0'),seconds:60})),B:[]});
- const layer=index=>contentsLayer({[flag]:true,cdContentIndex:index,h:index?105:7,trackOptions:{showProduction:true}});
+ const layer=index=>contentsLayer({[flag]:true,cdContentIndex:index,h:index?105:16,trackOptions:{showProduction:true}});
  p.surfaces[front]=[layer(0)];p.surfaces[back]=[layer(1)];return p;
 }
 

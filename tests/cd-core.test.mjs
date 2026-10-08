@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {Resvg} from '@resvg/resvg-js';
 import {createProject,clone,dimensions,panelRects,makeLayer,validateProject,boundText,importReference} from '../src/model.js';
 import {EDITOR_SURFACES,modeSurfaces,modeDefaultSurface,normalizeEditorMode,isCDMode} from '../src/media-formats.js';
-import {CD_DEFAULTS,cdLabelGeometry,resetCDSurfaces,updateCDLayout,updateCDTrackLayout} from '../src/cd-layout.js';
+import {CD_DEFAULTS,cdLabelGeometry,resetCDSurfaces,updateCDLayout,updateCDTrackLayout,cdInsertContentActive} from '../src/cd-layout.js';
 import {rebuildReferenceCDContents} from '../src/reference-cd.js';
 import {albumCoverFrame,applyAlbumArt,applyReferenceArtwork,albumArtLayer} from '../src/album-art.js';
 import {importMusicData} from '../src/music-import.js';
@@ -143,7 +143,7 @@ test('resetting an original CD Insert clears its template before generic column 
  const template=clone(p.referenceCDContentTemplate);p.referenceFreePlace={mode:'cd-insert',raw:'~bdefault-backText_25_50_100_0_5_0_1',token:'original'};
  const archive=clone(p.referenceFreePlace),old=clone(p.layout);p.layout.columns=2;updateCDLayout(p,'cd-insert',old);assert.deepEqual(p.referenceCDContentTemplate,template);assert.deepEqual(p.referenceFreePlace,archive);
  resetCDSurfaces(p,'cd-insert');assert.equal(p.referenceCDContentTemplate,undefined);assert.equal(p.referenceFreePlace,undefined);
- const previous=clone(p.layout);p.layout.columns=1;updateCDLayout(p,'cd-insert',previous);assert.equal(rebuildReferenceCDContents(p).created,0);assert.equal(p.surfaces.cdFront.filter(layer=>layer.cdContentFlow).length,1);assert.equal(p.surfaces.cdFront.some(layer=>layer.referenceCDContent),false);
+ const previous=clone(p.layout);p.layout.columns=1;updateCDLayout(p,'cd-insert',previous);assert.equal(rebuildReferenceCDContents(p).created,0);assert.equal(p.surfaces.cdFront.filter(layer=>layer.cdContentFlow&&cdInsertContentActive(p,layer,'cdFront')).length,1);assert.equal(p.surfaces.cdFront.some(layer=>layer.referenceCDContent),false);
  p.referenceFreePlace={mode:'label',raw:'other'};p.referenceCDContentTemplate=template;resetCDSurfaces(p,'cd-tray');assert.equal(p.referenceFreePlace.mode,'label');assert.deepEqual(p.referenceCDContentTemplate,template);
 });
 

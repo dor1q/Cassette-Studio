@@ -1,13 +1,13 @@
 # Cassette Studio для Windows
 
-Версия 2.4.2, Windows x64. Скачайте приложение в [GitHub Releases](https://github.com/dor1q/Cassette-Studio/releases/latest).
+Версия 2.4.3, Windows x64. Скачайте приложение в [GitHub Releases](https://github.com/dor1q/Cassette-Studio/releases/latest).
 
 Верхнее меню **CD** открывает **CD Labels**, **CD Inserts (Cover)** и **CD Tray Card (Back)**. Размеры и стороны находятся в «Макете»; музыкальный импорт использует общий список треков. Инструкция и раскладки печати — в [CD_FORMATS.md](CD_FORMATS.md).
 
 ## Запуск
 
-- [Cassette-Studio-2.4.2-Portable.exe](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.2/Cassette-Studio-2.4.2-Portable.exe) — откройте двойным щелчком. Установка не нужна.
-- [Cassette-Studio-2.4.2-Setup.exe](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.2/Cassette-Studio-2.4.2-Setup.exe) — установщик с выбором папки и ярлыками.
+- [Cassette-Studio-2.4.3-Portable.exe](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.3/Cassette-Studio-2.4.3-Portable.exe) — откройте двойным щелчком. Установка не нужна.
+- [Cassette-Studio-2.4.3-Setup.exe](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.3/Cassette-Studio-2.4.3-Setup.exe) — установщик с выбором папки и ярлыками.
 
 Node.js и отдельный браузер для приложения не нужны. Оно запускает редактор в собственном окне. Интернет нужен для музыкальных каталогов, новых шрифтов, декалей, обложек и Spotify Codes. Выбранные изображения и шрифты встраиваются в проект; уже сохранённые макеты можно редактировать без интернета.
 
@@ -120,7 +120,7 @@ Deezer поддерживает альбомы, треки и публичные
 
 ## Проверки и ограничения
 
-Текущие результаты проверки выпуска с CD приведены в [FIXES_2.4.2.md](FIXES_2.4.2.md). Проверки прежних кассетных форматов сохранены.
+Текущие результаты проверки выпуска с CD приведены в [FIXES_2.4.3.md](FIXES_2.4.3.md). Проверки прежних кассетных форматов сохранены.
 
 Новая проверка всех действий мышью не выполнена: средство управления браузером не запускается из-за ошибки прав чтения среды (`deny-read ACL`). Автоматические проверки и диагностика готового файла подтверждают только перечисленные сценарии. Они не являются полным сравнением Windows-интерфейса и не доказывают устранение любого возможного сбоя 0x80000003. Физическая печать не выполнялась; программа распространяется без сертификата цифровой подписи.
 

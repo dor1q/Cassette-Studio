@@ -85,13 +85,12 @@ test('saving and reopening a reference with disabled duplex keeps the latent ins
  assert.deepEqual(contents(reopened,'cdInside').map(layer=>layer.id),reopenedIds);assert.deepEqual(contents(reopened,'cdInside').map(layer=>({frame:frame(layer),style:style(layer)})),before.map(({frame,style})=>({frame,style})));
 });
 
-test('structural collapse of the latent back removes obsolete standard frames but keeps an edited or locked obsolete frame',()=>{
+test('structural collapse of the latent back retains obsolete standard, edited and locked frames for expansion',()=>{
  for(const state of ['untouched','manual','locked']){
   const project=imported('d3'),obsolete=contents(project,'cdInside').find(layer=>layer.cdPanelIndex===4);
   if(state==='manual')obsolete.x+=4;if(state==='locked')obsolete.locked=true;
   const before=clone(obsolete);change(project,{cdInsertDouble:false});change(project,{cdInsertPanels:2});
-  if(state==='untouched')assert.equal(project.surfaces.cdInside.some(layer=>layer.id===obsolete.id),false);
-  else {const retained=project.surfaces.cdInside.find(layer=>layer.id===obsolete.id);assert.deepEqual(frame(retained),frame(before));assert.deepEqual(style(retained),style(before));assert.equal(retained,obsolete)}
+  const retained=project.surfaces.cdInside.find(layer=>layer.id===obsolete.id);assert.deepEqual(frame(retained),frame(before));assert.deepEqual(style(retained),style(before));assert.equal(retained,obsolete);
   assert.equal(contents(project,'cdInside').filter(layer=>layer.cdPanelIndex!==4).length,2);
  }
 });

@@ -1,8 +1,12 @@
-# Cassette Studio 2.4.2
+# Cassette Studio 2.4.3
 
-Редактор кассет и CD для Windows x64: J-card, Cassette Label, CD Labels, CD Inserts (Cover) и CD Tray Card (Back). Скачайте [portable-приложение](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.2/Cassette-Studio-2.4.2-Portable.exe) без установки либо [установщик](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.2/Cassette-Studio-2.4.2-Setup.exe). Все выпуски доступны в [GitHub Releases](https://github.com/dor1q/Cassette-Studio/releases/latest). Node.js и отдельный браузер для готового приложения не нужны. Проекты и подключения хранятся отдельно от программы; подробности — в [WINDOWS.md](WINDOWS.md).
+Редактор кассет и CD для Windows x64: J-card, Cassette Label, CD Labels, CD Inserts (Cover) и CD Tray Card (Back). Скачайте [portable-приложение](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.3/Cassette-Studio-2.4.3-Portable.exe) без установки либо [установщик](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.3/Cassette-Studio-2.4.3-Setup.exe). Все выпуски доступны в [GitHub Releases](https://github.com/dor1q/Cassette-Studio/releases/latest). Node.js и отдельный браузер для готового приложения не нужны. Проекты и подключения хранятся отдельно от программы; подробности — в [WINDOWS.md](WINDOWS.md).
 
 Для запуска из исходников установите Node.js и выполните `npm ci`, затем `npm run build`. После этого выполните `npm start` и откройте http://127.0.0.1:8769/ либо запустите `START.cmd`. Для проверки используйте `npm test`; для запуска собственного окна — `npm run desktop`, для сборки Windows-приложения — `npm run desktop:build`.
+
+## Изменения в 2.4.3
+
+CD Insert сохраняет оформление отключённых панелей и колонок. Содержание печатается в порядке: заголовок, тексты песен, треклист, выходные данные. Исправлены стандартные координаты штрихкодов из CD-ссылок и размещение списка в импортированном CD Tray. Переразмещение стандартных блоков сохраняет свои картинки, коды, текст и закреплённые элементы. Смещение двусторонней печати учитывает переворот листа. Подробности — в [FIXES_2.4.3.md](FIXES_2.4.3.md).
 
 ## Изменения в 2.4.2
 

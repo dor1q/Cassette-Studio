@@ -40,11 +40,13 @@ export function duplicateSelection(project,layer,surface,{joined=true,dx=3,dy=3}
  if(group)return copyGroup(group,{dx,dy});
  if(!layer)return [];
  const copy={...referenceFlowCopy(layer,surface),id:uid(),name:layer.name+' копия',x:layer.x+dx,y:layer.y+dy};
+ delete copy.referenceCDStandard;
+ delete copy.cdTemplate;
  if(layer.source==='cdTracks'&&surface.startsWith('cdTray')&&(layer.cdTrayTrackFlow||layer.cdTemplate)||layer.source==='cdContents'&&(layer.cdContentFlow||layer.referenceCDContent)){
   // A copied column keeps its visible text independently of the album flow.
   // Structural changes must never consume or move this manual copy.
   copy.text=flowText(project,layer,surface).text;
-  for(const key of ['source','cdTemplate','cdTrayTrackFlow','cdContentFlow','referenceCDContent','cdPanelIndex','cdColumnIndex','cdContentIndex','referenceCDContentFrame'])delete copy[key];
+  for(const key of ['source','cdTemplate','cdTrayTrackFlow','referenceCDTrayTrack','referenceCDTrayTrackFrame','cdContentFlow','referenceCDContent','cdPanelIndex','cdColumnIndex','cdContentIndex','referenceCDContentFrame'])delete copy[key];
  }
  delete copy.referenceFlowEditGroup;
  if(copy.source==='referenceContents')delete copy.referenceBlockCopy;
