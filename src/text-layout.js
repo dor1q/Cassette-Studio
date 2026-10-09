@@ -6,7 +6,7 @@ const sameRun=(a,b)=>a.style===b.style&&a.bold===b.bold&&a.italic===b.italic&&a.
 
 // Keep visible glyphs and their styles together before wrapping. Markdown
 // delimiters never enter measurement, and a wrapped span keeps its emphasis.
-export function styledGlyphs(value,layer,{albumSpan=null}={}){
+export function styledGlyphs(value,layer,{albumSpan=null,literalText=false}={}){
  const input=String(value??''),glyphs=[];
  const append=(text,start,emphasis={})=>{
   let offset=start;
@@ -17,6 +17,7 @@ export function styledGlyphs(value,layer,{albumSpan=null}={}){
    offset+=glyph.length;
   }
  };
+ if(literalText){append(input,0);return glyphs}
  const pattern=/\*\*\*([^*]+)\*\*\*|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
  let offset=0;
  for(const match of input.matchAll(pattern)){
@@ -64,10 +65,10 @@ function markdownLine(runs){
  return (heading?'# ':'')+runs.map(run=>{const marker=run.bold&&run.italic?'***':run.bold?'**':run.italic?'*':'';return marker+run.text+marker}).join('');
 }
 
-function paragraphs(glyphs){
+function paragraphs(glyphs,literalText=false,markdownHeadings=true){
  const result=[[]];
  for(const glyph of glyphs){if(glyph.text==='\n'||glyph.text==='\r\n')result.push([]);else if(glyph.text!=='\r')result.at(-1).push(glyph)}
- for(let index=0;index<result.length;index++){
+ for(let index=0;!literalText&&markdownHeadings&&index<result.length;index++){
   const paragraph=result[index],prefix=paragraph.map(glyph=>glyph.text).join('').match(/^#{1,6}\s*/)?.[0];
   if(!prefix)continue;
   let consumed=0,start=0;while(start<paragraph.length&&consumed<prefix.length)consumed+=paragraph[start++].text.length;
@@ -86,8 +87,8 @@ function paragraphWords(glyphs){
  return words;
 }
 
-export function layoutStyledText(value,layer,{measureText,albumSpan=null}={}){
- const source=paragraphs(styledGlyphs(value,layer,{albumSpan}));
+export function layoutStyledText(value,layer,{measureText,albumSpan=null,literalText=!!layer.literalText,markdownHeadings=layer.markdownHeadings!==false}={}){
+ const source=paragraphs(styledGlyphs(value,layer,{albumSpan,literalText}),literalText,markdownHeadings);
  const calculate=size=>{
   const lineRuns=[],widths=[],availableWidths=[],lineHeights=[],baselines=[],insets=[];
   let top=0;

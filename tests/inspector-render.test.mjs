@@ -95,7 +95,7 @@ test('actual CD contents inspector shows field visibility and no cassette A/B co
  assert.match(html,/data-prop="font"/);assert.match(html,/data-prop="x"/);
  importReference(p,'https://vhs.texs.org/en/cd-tray?dc=1&musicA=SHORTTOKEN');
  const tracks=p.surfaces.cdTray.filter(layer=>layer.source==='cdTracks'),tray=()=>render(tracks[0],{mode:'cd-tray',project:p,surface:'cdTray'}).html;
- assert.match(tray(),/data-action="cd-tray-auto-font"/);assert.doesNotMatch(tray(),/data-prop="autoFit"/);assert.match(tray(),/подобран автоматически/);
+ assert.match(tray(),/data-cd-tray-font-inspector/);assert.match(tray(),/data-action="cd-tray-auto-font"/);assert.doesNotMatch(tray(),/data-prop="autoFit"/);assert.match(tray(),/подобран автоматически/);
  tracks[1].size=4;assert.match(tray(),/разные размеры/);assert.doesNotMatch(tray(),/подобран автоматически/);
 });
 

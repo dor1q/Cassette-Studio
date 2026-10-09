@@ -67,7 +67,7 @@ export function importReferenceCD(project,params,mode){
  if(mode==='cd-tray'){
   for(const layer of project.surfaces.cdTray){
    layer.referenceCDStandard=true;
-   if(layer.source==='cdSpine')Object.assign(layer,styles.spine,colorProps(project,'spine'),{referenceBlockKey:layer.name==='Левый корешок'?'spineText1':'spineText2',hideArtist:!!(hidden&1),hideAlbum:!!(hidden&2),spineTwoLines:project.layout.spineTwoLines,visible:!(hidden&1&&hidden&2)});
+   if(layer.source==='cdSpine')Object.assign(layer,styles.spine,colorProps(project,'spine'),{literalText:true,referenceBlockKey:layer.name==='Левый корешок'?'spineText1':'spineText2',hideArtist:!!(hidden&1),hideAlbum:!!(hidden&2),spineTwoLines:project.layout.spineTwoLines,visible:!(hidden&1&&hidden&2)});
    else if(layer.source==='cdTracks'){
     Object.assign(layer,styles.content,colorProps(project,'back'),{visible:true,autoFit:false,align:'left',lineHeight:1.5,referenceCDTrayTrack:true,trackOptions:{inlineTracks:false,showSide:false,showProduction:true,hideTracks:!!(hidden&4)}});
     Object.assign(layer,cdReferenceTrayTrackFrame(project,'cdTray',layer));layer.referenceCDTrayTrackFrame=frameSnapshot(layer);
@@ -79,7 +79,7 @@ export function importReferenceCD(project,params,mode){
   const inside=panelRects(project,'cdTrayInside').find(panel=>panel.index===2),pad=120*REFERENCE_UNIT;
   project.surfaces.cdTrayInside=project.layout.cdTrayDouble?[text(project,'production','Выходные данные внутри CD',{
    cdPanelIndex:2,x:inside.x+pad,y:pad,w:inside.w-2*pad,h:dimensions(project,'cdTrayInside').h-2*pad
-  },{font:'Arial',size:60*REFERENCE_UNIT,fontWeight:400},{cdTrayInsideProduction:true,align:'center',opacity:.5,...colorProps(project,'back')})]:[];
+  },{font:'Arial',size:60*REFERENCE_UNIT,fontWeight:400},{literalText:true,cdTrayInsideProduction:true,align:'center',opacity:.5,...colorProps(project,'back')})]:[];
   return project;
  }
  project.surfaces.cdFront=[];project.surfaces.cdInside=[];

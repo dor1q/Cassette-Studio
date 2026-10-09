@@ -9,6 +9,7 @@ import * as poster from '../src/cd-tray-poster.js';
 import * as content from '../src/cd-content-edit.js';
 import * as trayFont from '../src/cd-tray-font.js';
 import * as trayFontUI from '../src/cd-tray-font-ui.js';
+import * as tracks from '../src/cd-track-editing.js';
 import * as selection from '../src/selection-edit.js';
 import * as formats from '../src/media-formats.js';
 import * as editorActions from '../src/editor-actions.js';
@@ -16,6 +17,8 @@ import {syncCDTools} from '../src/cd-tool-sync.js';
 import {cdTextPanel,cdLayoutPanel,cdTrayPosterPanel} from '../src/cd-panels.js';
 import {applyAlbumArt,albumArtLayer} from '../src/album-art.js';
 import {rebuildReferenceCDContents} from '../src/reference-cd.js';
+import {renderSvg} from '../src/render.js';
+import {prepareExport} from '../src/export.js';
 
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8/x8AAwMCAO+/lHkAAAAASUVORK5CYII=';
@@ -23,15 +26,18 @@ function harness(mode='cd-label',surface=formats.modeDefaultSurface(mode),{realC
  const p=model.createProject();p.editorMode=mode;const callbacks=new Map(),history=[],saved=[],toasts=[],outputs=new Map();
  const sectionControls=['artist','album','cdTracks','production'].map(source=>({dataset:{cdSection:source},checked:true,disabled:false})),posterControls=['opacity','blur','scale'].map(key=>({dataset:{cdPoster:key},value:'0'}));
  const panel={querySelector(selector){if(!outputs.has(selector))outputs.set(selector,{});return outputs.get(selector)},querySelectorAll(selector){return selector==='[data-cd-section]'?sectionControls:selector==='[data-cd-poster]'?posterControls:[]}};
- const context=vm.createContext({...model,...layout,...label,...poster,...content,...trayFont,...trayFontUI,...selection,...formats,...editorActions,rebuildReferenceCDContents,syncCDTools,p,mode,surface,selected:'',joinColumns:false,projectRevision:0,saveTimer:undefined,
+ const inspectorFields=new Map(['size','x','y','w','h','rotation'].map(key=>[key,{dataset:{prop:key},value:'0'}])),inspectorHint={textContent:''},inspectorButton={disabled:false};
+ const inspectorFontControls={querySelector(selector){return selector==='.hint'?inspectorHint:selector==='[data-action="cd-tray-auto-font"]'?inspectorButton:null}};
+ const inspector={renders:0,querySelector(selector){if(selector==='[data-cd-tray-font-inspector]')return inspectorFontControls;return [...inspectorFields].find(([key])=>selector==='[data-prop="'+key+'"]')?.[1]||null}};
+ const context=vm.createContext({...model,...tracks,...layout,...label,...poster,...content,...trayFont,...trayFontUI,...selection,...formats,...editorActions,rebuildReferenceCDContents,syncCDTools,p,mode,surface,selected:'',joinColumns:false,projectRevision:0,saveTimer:undefined,
   updateReferenceFlapProduction(){},updateRecordLabelLogoColors(){},mirror(){},clearTimeout(){},setTimeout(){return 0},saveProject:async()=>{},
-  document:{activeElement:null,addEventListener(type,callback){callbacks.set(type,callback)}},$(){return panel},
-  checkpoint(){history.push(model.clone(context.p))},changed(options){saved.push(options)},toast(message){toasts.push(message)},draw(){},full(){},renderPanel(){},renderInspector(){}});
+  document:{activeElement:null,addEventListener(type,callback){callbacks.set(type,callback)}},$(id){return id==='inspector'?inspector:panel},
+  checkpoint(){history.push(model.clone(context.p))},changed(options){saved.push(options)},toast(message){toasts.push(message)},draw(){},full(){},renderPanel(){},renderInspector(){inspector.renders++}});
  const input=app.slice(app.indexOf("document.addEventListener('input'"),app.indexOf('\nfunction reflowLyrics('));
  const actions=app.slice(app.indexOf('function cdAction('),app.indexOf('\nfunction uiAction('));
  vm.runInContext(`const layers=()=>p.surfaces[surface],current=()=>layers().find(layer=>layer.id===selected),editFrame=()=>selectionFrame(p,current(),surface,joinColumns);${actions}\n${input}`,context);
  if(realChanged){vm.runInContext(app.slice(app.indexOf('function changed('),app.indexOf('\nfunction selectArtwork(')),context);const actual=context.changed;context.changed=options=>{saved.push(options||{});actual(options)}}
- return {p,context,history,saved,toasts,outputs,panel,sectionControls,posterControls,input(dataset,value,{checked=false,type='checkbox',min='',max=''}={}){callbacks.get('input')({target:{dataset,value:String(value),checked,type,min,max,tagName:'INPUT',hasAttribute(){return false}}})},action(action,source){context.cdAction(action,{dataset:{source},textContent:'Выходные данные'})}};
+ return {p,context,history,saved,toasts,outputs,panel,sectionControls,posterControls,inspector,inspectorFields,inspectorHint,inspectorButton,input(dataset,value,{checked=false,type='checkbox',min='',max='',element}={}){const target=Object.assign(element||{},{dataset,value:String(value),checked,type,min,max,tagName:'INPUT',hasAttribute(){return false}});context.document.activeElement=target;callbacks.get('input')({target});return target},action(action,source){context.cdAction(action,{dataset:{source},textContent:'Выходные данные'})}};
 }
 const controls={field:(text,key,value)=>`<input data-bind="data.${key}" value="${model.esc(value)}">`,btn:(text,action,attrs)=>`<button data-action="${action}" ${attrs||''}>${text}</button>`,select:(text,key,value,items,group)=>`<select data-bind="${group}.${key}">${items.map(([key,text])=>`<option>${text}</option>`).join('')}</select>`,check:()=>''};
 test('actual auto-size restore button preserves manual placement with one undo and protects locked columns',()=>{
@@ -121,4 +127,52 @@ test('unlocking a cover and editing it in the inspector synchronizes existing po
 test('control synchronization retains focus and the value of an active range without replacing it',()=>{
  const p=model.createProject();p.editorMode='cd-tray';applyAlbumArt(p,image);const h=harness('cd-tray'),range=h.posterControls[2];range.value='1.456';albumArtLayer(p,'cdTray').cropZoom=1.456;
  syncCDTools(p,'cd-tray','cdTray',h.panel,range);assert.equal(range.value,'1.456');assert.equal(h.outputs.get('[data-cd-poster-value="scale"]').textContent,1.46);assert.equal(h.posterControls[0].value,'20');
+});
+
+test('actual track editing synchronizes computed Tray inspector size and frame without extra undo',()=>{
+ const h=harness('cd-tray','cdTray',{realChanged:true});model.importReference(h.p,'https://vhs.texs.org/en/cd-tray?dc=1&musicA=SHORTTOKEN');
+ const layer=h.p.surfaces.cdTray.find(layer=>layer.source==='cdTracks'&&layer.cdColumnIndex===1);h.context.selected=layer.id;h.context.changed();const previous=layer.size;
+ const input=h.input({cdTrackField:'title',i:'0'},'x'.repeat(1200),{type:'text'});
+ assert.ok(layer.size<previous);assert.equal(layer.size,36*25.4/600);
+ for(const key of ['size','x','y','w','h','rotation'])assert.equal(h.inspectorFields.get(key).value,String(Number(layer[key].toFixed(3))),key);
+ assert.equal(h.inspectorHint.textContent,trayFontUI.cdTrayFontHint(trayFontUI.cdTrayFontState(h.p,'cdTray')));assert.match(h.inspectorHint.textContent,/автоматически/);
+ assert.equal(h.outputs.get('[data-cd-tray-font-hint]').textContent,h.inspectorHint.textContent);
+ assert.equal(h.inspector.renders,0);assert.equal(h.context.document.activeElement,input);assert.equal(h.history.length,1);
+ h.context.changed();assert.equal(h.history.length,1);assert.equal(h.inspector.renders,0);
+});
+
+test('actual production editing synchronizes the automatic Tray inspector frame',()=>{
+ const h=harness('cd-tray','cdTray',{realChanged:true});model.importReference(h.p,'https://vhs.texs.org/en/cd-tray?dc=1&musicA=SHORTTOKEN');
+ const layer=h.p.surfaces.cdTray.find(layer=>layer.source==='cdTracks');h.context.selected=layer.id;h.context.changed();const previous=layer.h,size=layer.size;
+ h.input({bind:'data.production'},'New album credits',{type:'textarea'});
+ assert.ok(layer.h<previous);assert.equal(layer.size,size);assert.equal(h.inspectorFields.get('h').value,String(Number(layer.h.toFixed(3))));
+ assert.equal(h.history.length,1);assert.equal(h.inspector.renders,0);assert.match(h.inspectorHint.textContent,/автоматически/);
+});
+
+test('actual manual Tray size input keeps focus and its full value while updating mixed and manual hints',()=>{
+ const h=harness('cd-tray','cdTray',{realChanged:true});model.importReference(h.p,'https://vhs.texs.org/en/cd-tray?dc=1&musicA=SHORTTOKEN');
+ const family=h.p.surfaces.cdTray.filter(layer=>layer.source==='cdTracks');h.context.selected=family[0].id;h.context.joinColumns=true;h.context.changed();
+ const field=h.inspectorFields.get('size');h.input({prop:'size'},'2.3456',{type:'number',element:field});
+ assert.equal(family[0].size,2.3456);assert.equal(field.value,'2.3456');assert.equal(h.context.document.activeElement,field);assert.equal(h.inspector.renders,0);assert.match(h.inspectorHint.textContent,/разные размеры/);assert.equal(h.history.length,1);
+ h.context.selected=family[1].id;h.input({prop:'size'},'2.3456',{type:'number',element:field});
+ assert.match(h.inspectorHint.textContent,/задан вручную/);assert.equal(field.value,'2.3456');assert.equal(h.inspector.renders,0);assert.equal(h.history.length,2);
+ const before=model.clone(h.p);h.context.changed();assert.deepEqual(h.p,before);assert.equal(h.history.length,2);
+ family[1].locked=true;h.context.changed();assert.equal(h.inspectorButton.disabled,true);assert.equal(h.history.length,2);
+});
+
+test('actual manual Tray inspector size is printed by the same renderer used for export',()=>{
+ const h=harness('cd-tray','cdTray',{realChanged:true});model.importReference(h.p,'https://vhs.texs.org/en/cd-tray?dc=1&musicA=SHORTTOKEN');
+ const layer=h.p.surfaces.cdTray.find(layer=>layer.source==='cdTracks');h.context.selected=layer.id;
+ h.input({prop:'size'},'2.3456',{type:'number',element:h.inspectorFields.get('size')});
+ const before=model.clone(h.p),preview=renderSvg(h.p,'cdTray',{guides:false}),exported=prepareExport(h.p,{mode:'cd-tray',surface:'cdTray',selection:'current',guides:false}).items[0];
+ assert.deepEqual(preview.warnings,[]);assert.equal(exported.svg,preview.svg);assert.ok(preview.svg.includes('font-size="2.3456"'));
+ assert.deepEqual(h.p,before);assert.equal(h.history.length,1);assert.equal(h.inspectorFields.get('size').value,'2.3456');
+});
+
+test('manual size inputs retain the existing inspector rebuild outside imported original Tray tracks',()=>{
+ for(const mode of ['jcard','cd-tray']){
+  const h=harness(mode,formats.modeDefaultSurface(mode),{realChanged:true}),layer=h.p.surfaces[h.context.surface].find(layer=>layer.type==='text');
+  h.context.selected=layer.id;h.context.joinColumns=true;h.input({prop:'size'},'2.3456',{type:'number'});
+  assert.equal(layer.size,2.3456);assert.equal(h.inspector.renders,1,mode);assert.equal(h.history.length,1);
+ }
 });
