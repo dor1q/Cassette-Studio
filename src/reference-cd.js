@@ -1,6 +1,7 @@
 import {makeLayer,dimensions,panelRects,clamp,clone,uid} from './model.js';
 import {resetCDSurfaces,updateCDTrackLayout,cdReferenceTrayTrackFrame} from './cd-layout.js';
 import {REFERENCE_UNIT,referenceFont,referenceFlags} from './reference-format.js';
+import {referenceCDTrayFontStyle} from './cd-tray-font.js';
 
 const POINT=25.4/72;
 const number=(value,fallback,min,max)=>value!==null&&value!==''&&Number.isFinite(Number(value))?clamp(Number(value),min,max):fallback;
@@ -62,13 +63,13 @@ export function importReferenceCD(project,params,mode){
   if(project.layout.cdTrackLayout==='right')Object.assign(track,{x:238.22*POINT,y:h/2-7*POINT*Math.min(18,project.data.A.length+project.data.B.length)/2,w:90*POINT,h:126*POINT,maxTracks:18,trackOptions:{inlineTracks:false,showSide:false}});
   return project;
  }
- const surface=mode==='cd-tray'?'cdTray':'cdFront',styles=mode==='cd-tray'?{content:referenceFont(params.get('fb'),72*REFERENCE_UNIT*.75,REFERENCE_UNIT,{font:'Nunito Sans',weight:400}),spine:referenceFont(params.get('f2'),56*REFERENCE_UNIT,REFERENCE_UNIT,{font:'Nunito Sans',weight:500})}:{content:referenceFont(params.get('fi'),48*REFERENCE_UNIT,REFERENCE_UNIT,{font:'Futura',weight:700})};
+ const surface=mode==='cd-tray'?'cdTray':'cdFront',styles=mode==='cd-tray'?{content:referenceCDTrayFontStyle(params,project.data),spine:referenceFont(params.get('f2'),56*REFERENCE_UNIT,REFERENCE_UNIT,{font:'Nunito Sans',weight:500})}:{content:referenceFont(params.get('fi'),48*REFERENCE_UNIT,REFERENCE_UNIT,{font:'Futura',weight:700})};
  if(mode==='cd-tray'){
   for(const layer of project.surfaces.cdTray){
    layer.referenceCDStandard=true;
    if(layer.source==='cdSpine')Object.assign(layer,styles.spine,colorProps(project,'spine'),{referenceBlockKey:layer.name==='Левый корешок'?'spineText1':'spineText2',hideArtist:!!(hidden&1),hideAlbum:!!(hidden&2),spineTwoLines:project.layout.spineTwoLines,visible:!(hidden&1&&hidden&2)});
    else if(layer.source==='cdTracks'){
-    Object.assign(layer,styles.content,colorProps(project,'back'),{visible:!(hidden&4),align:'left',lineHeight:1.5,referenceCDTrayTrack:true,trackOptions:{inlineTracks:false,showSide:false,showProduction:true},hideA:!!(hidden&4),hideB:!!(hidden&8)});
+    Object.assign(layer,styles.content,colorProps(project,'back'),{visible:true,autoFit:false,align:'left',lineHeight:1.5,referenceCDTrayTrack:true,trackOptions:{inlineTracks:false,showSide:false,showProduction:true,hideTracks:!!(hidden&4)}});
     Object.assign(layer,cdReferenceTrayTrackFrame(project,'cdTray',layer));layer.referenceCDTrayTrackFrame=frameSnapshot(layer);
    }
    else if(layer.source==='artist'||layer.source==='album')Object.assign(layer,styles.content,colorProps(project,layer.source==='artist'?'back':'album'),{visible:false,size:styles.content.size*(layer.source==='artist'?1.4:1.1)});

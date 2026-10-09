@@ -1,6 +1,7 @@
 import {parseMusicLink} from '../music-links.mjs';
 import {applyAlbumArt,applyReferenceArtwork,cachedReferenceArtwork,referenceArtworkKey} from './album-art.js';
 import {referenceImageDimensions} from './reference-image-source.js';
+import {syncReferenceCDTrayFonts} from './cd-tray-font.js';
 import {selectCoverChoice,referenceCoverIndex,audioBackgroundChoices,coverChoices} from './cover-choices.js';
 import {loadReferenceImage} from './reference-image-source.js';
 import {recordLabelMetadata} from '../music-labels.mjs';
@@ -45,8 +46,14 @@ export async function restoreReferenceMusicMetadata(project,url,request,previous
   if(!params.has('musicProd')&&!params.has('musicPL'))project.data.production=album.production||'';
   if(!['musicA','musicB','sai','sbi'].some(key=>params.has(key))) {
    project.data.A=album.tracks.filter(track=>track.title.trim()).map(track=>({id:uid(),title:track.title,artist:track.artist,seconds:track.seconds}));project.data.B=[];
+  }else if(params.has('musicA')&&!params.has('sai')){
+   // A raw title keeps its written duration and artist override. The source
+   // album can supply an absent artist only for an exact matching title.
+   const byTitle=new Map(album.tracks.map(track=>[track.title,track]));
+   for(const track of project.data.A)if(!track.artist&&byTitle.get(track.title)?.artist)track.artist=byTitle.get(track.title).artist;
   }
  }
+ syncReferenceCDTrayFonts(project);
  project.referenceCoverChoices=selection.choices;project.referenceBackgroundChoices=backgroundChoices;
  project.referenceBackgroundChoicesScope=referenceMusicGalleryScope(url.searchParams);
  return {album,musicUrl,choices:selection.choices,backgroundChoices,cached:!!reusable};

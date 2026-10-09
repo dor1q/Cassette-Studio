@@ -76,7 +76,7 @@ export function cdInsertContentOrder(project,layer,surface){
  return (surface==='cdInside'?cdPanelRects(project,'cdFront').length-1:0)*columns+index*columns+(layer.cdColumnIndex||0);
 }
 export function cdReferenceTrayTrackFrame(project,surface,layer){
- const panel=cdPanelRects(project,surface).find(panel=>panel.index===2),{h}=cdDimensions(project,surface),fraction=Math.max(.02,Math.min(.2,((layer.size/(72*UNIT))-.5)*.16+.02)),pad=Math.round(panel.w/UNIT*fraction)*UNIT,top=Math.round(h/UNIT*fraction)*UNIT;
+ const panel=cdPanelRects(project,surface).find(panel=>panel.index===2),{h}=cdDimensions(project,surface),scale=Number.isFinite(layer.referenceCDTrayFontScale)&&Math.abs(layer.size-layer.referenceCDTrayFontSize)<.0001?layer.referenceCDTrayFontScale/100:layer.size/(72*UNIT),fraction=Math.max(.02,Math.min(.2,(scale-.5)*.16+.02)),pad=Math.round(panel.w/UNIT*fraction)*UNIT,top=Math.round(h/UNIT*fraction)*UNIT;
  const column=layer.cdColumnIndex||0,columns=Math.max(project.layout.columns===2?2:1,column+1),width=(panel.w-pad*2)/columns,credits=!!String(project.data.production||'').trim(),height=h-top-40*UNIT-(credits?Math.round(h/UNIT*.1)*UNIT:0);
  return {x:panel.x+pad+column*width,y:top,w:width,h:Math.max(.1,height)*(columns===2?Math.max(.2,Math.min(1,(Number(project.layout.columnHeight)||100)/100)):1),rotation:0,cdColumnIndex:column,cdTrayTrackFlow:true};
 }
@@ -140,7 +140,7 @@ function latentInsertContent(project,surface,layer){
  const shown={...project,layout:{...project.layout,cdInsertPanels:Math.max(project.layout.cdInsertPanels,layer.cdPanelIndex-1),columns:Math.max(project.layout.columns,(layer.cdColumnIndex||0)+1)}};
  return insertContents(shown,surface,cdPanelRects(shown,surface).filter(panel=>surface!=='cdFront'||panel.index!==2),cdDimensions(shown,surface).h).find(candidate=>candidate.cdPanelIndex===layer.cdPanelIndex&&candidate.cdColumnIndex===(layer.cdColumnIndex||0));
 }
-const trayStyleKeys=['font','fontWeight','fontStretch','size','color','bold','italic','uppercase','smallcaps','align','lineHeight','spacing','outline','outlineColor','shadow','shadowColor','opacity','visible','autoFit','referenceOwnColor','hideA','hideB','hideTracks','showProduction'];
+const trayStyleKeys=['font','fontWeight','fontStretch','size','color','bold','italic','uppercase','smallcaps','align','lineHeight','spacing','outline','outlineColor','shadow','shadowColor','opacity','visible','autoFit','referenceOwnColor','hideA','hideB','hideTracks','showProduction','referenceCDTrayRequestedFontScale','referenceCDTrayFontScale','referenceCDTrayFontSize'];
 export function updateCDLayout(project,mode,previousLayout){
  if(!isCDMode(mode))return;
  const referenceContents=mode==='cd-insert'&&(project.referenceCDContentTemplate?.source==='cdContents'||['cdFront','cdInside'].some(surface=>project.surfaces[surface]?.some(layer=>layer.referenceCDContent&&!layer.referenceBlockCopy)));

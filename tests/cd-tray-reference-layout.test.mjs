@@ -14,7 +14,7 @@ const frame=layer=>Object.fromEntries(['x','y','w','h','rotation'].map(key=>[key
 test('original CD Tray body has tracks and credits above its old title area while headings stay only on spines',()=>{
  const p=imported({musicProd:'PRODUCTIONTOKEN'}),layer=tracks(p)[0],panel=panelRects(p,'cdTray').find(panel=>panel.index===2);
  assert.ok(p.surfaces.cdTray.filter(layer=>['artist','album'].includes(layer.source)).every(layer=>layer.visible===false));
- near(layer.size,54*unit);near(layer.x,panel.x+195*unit);near(layer.y,167*unit);near(layer.w,panel.w-390*unit);near(layer.h,(2787-167-40-279)*unit);near(layer.lineHeight,1.5);assert.equal(layer.align,'left');assert.equal(layer.referenceCDTrayTrack,true);
+ near(layer.size,72*unit);near(layer.x,panel.x+324*unit);near(layer.y,279*unit);near(layer.w,panel.w-648*unit);near(layer.h,(2787-279-40-279)*unit);near(layer.lineHeight,1.5);assert.equal(layer.align,'left');assert.equal(layer.referenceCDTrayTrack,true);
  assert.deepEqual(frame(layer),layer.referenceCDTrayTrackFrame);
  const before=JSON.stringify(p),body={...p,surfaces:{...p.surfaces,cdTray:p.surfaces.cdTray.filter(layer=>layer.source!=='cdSpine')}};
  const rendered=renderSvg(body,'cdTray',{guides:false});assert.ok(rendered.svg.includes('TRACKTOKEN'));assert.ok(rendered.svg.includes('PRODUCTIONTOKEN'));assert.equal(rendered.svg.includes('ARTISTTOKEN'),false);assert.equal(rendered.svg.includes('ALBUMTOKEN'),false);assert.equal(rendered.warnings.length,0);
@@ -24,11 +24,11 @@ test('original CD Tray body has tracks and credits above its old title area whil
 
 test('original two-column tray uses zero gap, actual font padding and requested height without showing body titles after reflow',()=>{
  const p=imported({dc:'1',ch:'50',musicProd:'PRODUCTIONTOKEN'}),columns=tracks(p);assert.equal(columns.length,2);
- for(const layer of columns)near(layer.h,(2787-167-40-279)*unit*.5);near(columns[1].x,columns[0].x+columns[0].w);
+ for(const layer of columns)near(layer.h,(2787-279-40-279)*unit*.5);near(columns[1].x,columns[0].x+columns[0].w);
  const first=columns[0],second=columns[1],ids=columns.map(layer=>layer.id);second.font='Georgia';second.color='#fa0000';const saved=clone(second);
- change(p,{columns:1});assert.equal(cdTrayTrackActive(p,second,'cdTray'),false);assert.deepEqual(second,saved);near(first.h,(2787-167-40-279)*unit);
+ change(p,{columns:1});assert.equal(cdTrayTrackActive(p,second,'cdTray'),false);assert.deepEqual(second,saved);near(first.h,(2787-279-40-279)*unit);
  change(p,{columns:2});assert.deepEqual(tracks(p).map(layer=>layer.id),ids);assert.deepEqual(second,saved);assert.ok(p.surfaces.cdTray.filter(layer=>['artist','album'].includes(layer.source)).every(layer=>layer.visible===false));
- const reopened=validateProject(JSON.parse(JSON.stringify(p))),restored=tracks(reopened)[0];assert.equal(restored.referenceCDTrayTrack,true);change(reopened,{columnHeight:75});near(restored.h,(2787-167-40-279)*unit*.75);
+ const reopened=validateProject(JSON.parse(JSON.stringify(p))),restored=tracks(reopened)[0];assert.equal(restored.referenceCDTrayTrack,true);change(reopened,{columnHeight:75});near(restored.h,(2787-279-40-279)*unit*.75);
 });
 
 test('reference tray tracks reflow using their own padding while manual and locked frames and generic templates stay unchanged',()=>{

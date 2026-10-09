@@ -17,6 +17,8 @@ import {cdTrayPosterState,setCDTrayPoster,applyOriginalCDTrayPoster} from './cd-
 import {syncCDTools} from './cd-tool-sync.js';
 import {cdContentControls,canEditCDContent,setCDContentOption,resetCDContentOptions} from './cd-content-edit.js';
 import {resetCDStandardBlocks} from './cd-standard-reset.js';
+import {syncReferenceCDTrayFonts,enableReferenceCDTrayAutoFont} from './cd-tray-font.js';
+import {cdTrayFontState,cdTrayFontInspectorControls} from './cd-tray-font-ui.js';
 import {cdTracks,replaceCDTracks,editCDTrack,moveCDTrack,deleteCDTrack,addCDTrack} from './cd-track-editing.js';
 import {albumTextStyle,changeAlbumTextStyle,inheritAlbumTextColor,resetAlbumTextStyle} from './spine-style.js';
 import {coverGalleryPicker} from './cover-gallery-picker.js';
@@ -74,7 +76,7 @@ function mirror(){
  if(result.blocked){const control=document.querySelector('[data-bind="layout.sync"]');if(control)control.checked=false;toast('Синхронизация выключена: на другой стороне есть закреплённые элементы.');}
  return result;
 }
-function changed({panel=false,inspector=false,mirrorLayers=false}={}){projectRevision++;updateReferenceFlapProduction(p);updateRecordLabelLogoColors(p);if(mirrorLayers)mirror();draw();if(panel)renderPanel();syncCDTools(p,mode,surface,$('panel'),document.activeElement);if(inspector)renderInspector();clearTimeout(saveTimer);$('autosave').textContent='Сохранение…';saveTimer=setTimeout(async()=>{try{await saveProject('autosave',p);$('autosave').textContent='Сохранено на этом устройстве'}catch{$('autosave').textContent='Не удалось сохранить — скачайте JSON'}},450)}
+function changed({panel=false,inspector=false,mirrorLayers=false}={}){projectRevision++;syncReferenceCDTrayFonts(p);updateReferenceFlapProduction(p);updateRecordLabelLogoColors(p);if(mirrorLayers)mirror();draw();if(panel)renderPanel();syncCDTools(p,mode,surface,$('panel'),document.activeElement);if(inspector)renderInspector();clearTimeout(saveTimer);$('autosave').textContent='Сохранение…';saveTimer=setTimeout(async()=>{try{await saveProject('autosave',p);$('autosave').textContent='Сохранено на этом устройстве'}catch{$('autosave').textContent='Не удалось сохранить — скачайте JSON'}},450)}
 function selectArtwork(layer){
  if(!layer)return;selected=layer.id;cropEditing=!layer.locked;imageZoomGesture=null;draw();renderInspector();
 }
@@ -180,7 +182,7 @@ function renderInspector(){
    '<div class="two">'+prop('Размер, мм','size','number','min="0.1" max="100" step="0.1"')+prop('Цвет','color','color')+'</div>'+
    propSelect('Выравнивание','align',[['left','Слева'],['center','По центру'],['right','Справа']])+
    '<div class="row">'+propCheck('Жирный','bold')+propCheck('Курсив','italic')+propCheck('ПРОПИСНЫЕ','uppercase')+'</div>'+
-   propCheck('Автоподбор размера','autoFit')+
+   cdTrayFontInspectorControls(p,l,surface,{btn,propCheck})+
    '<div class="row">'+btn('Google Fonts · поиск','google-fonts')+btn('Загрузить шрифт','font')+'</div>';
   effects+='<div class="two">'+
    prop('Насыщенность 100–900','fontWeight','number','min="100" max="900" step="100"')+
@@ -262,6 +264,10 @@ function renderInspector(){
 }
 function add(type,props={}){checkpoint(true);const l=makeLayer(type,{color:p.settings.fg,...props});layers().push(l);selected=l.id;changed({panel:true,inspector:true,mirrorLayers:true})}
 function cdAction(action,button){
+ if(action==='cd-tray-auto-font'){
+  const state=cdTrayFontState(p,surface);if(!state||state.locked){toast('Снимите закрепление колонок в «Слоях».');return true}
+  checkpoint(true);enableReferenceCDTrayAutoFont(p,state.layer);changed({panel:true,inspector:true});toast('Размер треклиста подобран автоматически. Ctrl+Z отменяет.');return true;
+ }
  const index=Number(button?.dataset.i);
  if(action==='cd-poster-original'){const state=mode==='cd-tray'&&cdTrayPosterState(p,surface);if(!state||state.locked){toast(state?.locked?'Обложка закреплена. Сначала снимите закрепление.':'Сначала добавьте обложку CD Tray.');return}if(Math.abs(state.opacity-20)<1e-8&&Math.abs(state.blur-60)<1e-8&&Math.abs(state.scale-1.1)<1e-8)return;checkpoint(true);applyOriginalCDTrayPoster(p,surface);changed({panel:true,inspector:true,mirrorLayers:true});return}
  if(action==='cd-focus-text'&&mode==='cd-label'&&button.dataset.source==='production'&&!layers().some(layer=>layer.type==='text'&&layer.source==='production')){checkpoint(true);selected=ensureCDLabelProduction(p).id;changed({panel:true,inspector:true,mirrorLayers:true});return}
@@ -451,6 +457,7 @@ async function applyReference(url){
  const extras=await restoreReferenceExtras(next,u.searchParams,request,nextMode,Object.values(p.surfaces).flat());decals.restored+=extras.restored;decals.missing+=extras.missing;
  const logo=await restoreReferenceLogo(next,u.searchParams,request,nextMode,cachedImages);decals.restored+=logo.restored;decals.missing+=logo.missing;
  if(logo.warnings?.length)artError+=' '+logo.warnings.join(' ');
+ syncReferenceCDTrayFonts(next);
  applyReferenceBlocks(next,u.searchParams,nextMode,{pending:true});
  const fonts=await restoreReferenceFonts(next,request);
  if(nextMode==='label'){

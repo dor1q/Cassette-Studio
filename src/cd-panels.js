@@ -2,12 +2,15 @@ import {esc,time,total} from './model.js';
 import {cdDimensions} from './cd-layout.js';
 import {cdLabelSectionControl} from './cd-label-text.js';
 import {cdTrayPosterState} from './cd-tray-poster.js';
+import {cdTrayFontState,cdTrayFontHint} from './cd-tray-font-ui.js';
 
 export function cdTextPanel(project,mode,surface,{field,btn}){
  const focus=(source,label)=>btn(label,'cd-focus-text',`data-source="${source}"`);
  const show=(source,label)=>mode==='cd-label'?cdLabelSectionControl(project,source,label):'';
  let html='<fieldset class="cd-text-group"><legend>Название</legend>'+field('Исполнитель','artist',project.data.artist)+show('artist','исполнителя')+field('Альбом','album',project.data.album)+show('album','альбом')+'<div class="row">'+focus('artist','Блок исполнителя')+focus('album','Блок альбома')+'</div></fieldset>';
  html+='<fieldset class="cd-text-group"><legend>Содержание '+(mode==='cd-insert'?'вкладыша':'CD')+'</legend>'+show('cdTracks','треклист')+focus('cdTracks',mode==='cd-insert'?'Выбрать содержание на макете':'Выбрать треклист')+'<p class="hint">Список треков редактируется во вкладке «Треки». В правой панели выбранного блока можно скрыть отдельные части и настроить оформление.</p>';
+ const trayFont=mode==='cd-tray'?cdTrayFontState(project,surface):null;
+ if(trayFont)html+='<p class="hint" data-cd-tray-font-hint>'+cdTrayFontHint(trayFont)+'</p>'+btn('Подобрать размер треклиста автоматически','cd-tray-auto-font','class="wide" '+(trayFont.locked?'disabled':'')+' data-cd-tray-auto-font')+'<p class="hint">Ручное изменение размера в свойствах отключает подбор. Закреплённая колонка защищает общий треклист.</p>';
  html+=field('Тексты песен · Markdown','lyrics',project.data.lyrics,'textarea');
  if(mode!=='cd-insert')html+=focus('lyrics','Блок текстов песен');
  html+=field('Выходные данные · Markdown','production',project.data.production,'textarea');

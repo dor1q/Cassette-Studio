@@ -8,6 +8,7 @@ import {restoreReferenceMusicMetadata,restoreReferenceMusicArtwork} from '../src
 import {albumArtLayer,applyReferenceArtwork} from '../src/album-art.js';
 import {setCassettePrintArea,cassettePrintArea} from '../src/cassette-shell.js';
 import {applyReferenceBlocks} from '../src/reference-freeplace.js';
+import {syncReferenceCDTrayFonts} from '../src/cd-tray-font.js';
 
 // Execute the application import callback and its actual atomic-open helpers.
 // Service, asset decoding, fonts and UI boundaries are the only replacements.
@@ -43,7 +44,7 @@ function harness(initial=createProject(),{service,fontLoad=async()=>{},restoreFo
  const boundaries={restoreReferenceCover:async()=>{calls.assets.push('cover');return {restored:false,handled:false}},restoreReferenceBackgrounds:asset('backgrounds'),restoreReferenceDecals:async(project,params,api,decode,surface)=>{calls.assets.push('decals');calls.decalSurfaces.push(surface);return {restored:0,missing:0,warnings:[]}},restoreReferenceExtras:asset('extras'),restoreReferenceLogo:asset('logo'),
   restoreReferenceFonts:async(project,api)=>{calls.restoreFonts.push(project);return restoreFonts(project,api)},
   restoreReferenceMusicArtwork:(project,url,api,mode,previous)=>restoreReferenceMusicArtwork(project,url,api,mode,previous,async()=>({w:600,h:600}))};
- return new Function('initial','calls','inputs','faces','request','FontFace','Image','document','boundaries','clone','migrate','importReference','referenceMode','restoreReferenceSideMusic','restoreReferenceMusicMetadata','albumArtLayer','applyReferenceArtwork','setCassettePrintArea','cassettePrintArea','applyReferenceBlocks','modeTitle','modeDefaultSurface',`
+ return new Function('initial','calls','inputs','faces','request','FontFace','Image','document','boundaries','clone','migrate','importReference','referenceMode','restoreReferenceSideMusic','restoreReferenceMusicMetadata','albumArtLayer','applyReferenceArtwork','setCassettePrintArea','cassettePrintArea','applyReferenceBlocks','modeTitle','modeDefaultSurface','syncReferenceCDTrayFonts',`
   let p=initial,projectRevision=0,projectOpenGeneration=0,mode='jcard',surface='outer',bothView=false,selected='keep-selection';
   const $=name=>inputs[name],localStorage={setItem:(key,value)=>calls.storage.push([key,value])},checkpoint=()=>{projectRevision++;calls.history.push(clone(p))},changed=()=>{projectRevision++;calls.saved.push(p)},full=()=>calls.full.push(p),toast=message=>calls.toasts.push(message);
   const {restoreReferenceCover,restoreReferenceBackgrounds,restoreReferenceDecals,restoreReferenceExtras,restoreReferenceLogo,restoreReferenceFonts,restoreReferenceMusicArtwork}=boundaries;
@@ -51,7 +52,7 @@ function harness(initial=createProject(),{service,fontLoad=async()=>{},restoreFo
   ${fontLoader}
   ${handler}
   return {calls,faces,inputs,run:applyReference,replace:project=>p=project,edit:edit=>{edit(p);projectRevision++},state:()=>({p,mode,surface,bothView,selected}),beginProjectOpen,prepareProjectOpen,commitPreparedProject};
- `)(initial,calls,inputs,faces,request,FontFace,Image,document,boundaries,clone,migrate,importReference,referenceMode,restoreReferenceSideMusic,restoreReferenceMusicMetadata,albumArtLayer,applyReferenceArtwork,setCassettePrintArea,cassettePrintArea,applyReferenceBlocks,modeTitle,modeDefaultSurface);
+ `)(initial,calls,inputs,faces,request,FontFace,Image,document,boundaries,clone,migrate,importReference,referenceMode,restoreReferenceSideMusic,restoreReferenceMusicMetadata,albumArtLayer,applyReferenceArtwork,setCassettePrintArea,cassettePrintArea,applyReferenceBlocks,modeTitle,modeDefaultSurface,syncReferenceCDTrayFonts);
 }
 const imports=h=>h.calls.requests.filter(path=>path.startsWith('/api/import?')).map(path=>new URL(path,'https://studio.test').searchParams.get('url'));
 function untouched(h,project){

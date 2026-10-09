@@ -1,6 +1,6 @@
 import {normalizePaint} from './color-paint.js';
 import {recordLabelMetadata} from '../music-labels.mjs';
-import {makeLayer,resetSurfaces,dimensions,panelRects,parseTracks,clone,uid,clamp} from './model.js';
+import {makeLayer,resetSurfaces,dimensions,panelRects,parseTracks,parseTrackDuration,clone,uid,clamp} from './model.js';
 import {CASSETTE_TEMPLATE} from './cassette-template.js';
 import {rebuildReferenceFlow,updateReferenceFlapProduction} from './reference-flow.js';
 import {applyReferenceBlocks} from './reference-freeplace.js';
@@ -9,6 +9,15 @@ import {importReferenceCD} from './reference-cd.js';
 import {isCDMode,modeDefaultSurface} from './media-formats.js';
 
 export function referenceMode(url){const u=new URL(url);if(u.hostname!=='vhs.texs.org')throw Error('Нужна ссылка vhs.texs.org');const route=/\/([^/]+)\/?$/.exec(u.pathname)?.[1],mode={cassette:'label',jcard:'jcard',cd:'cd-label','cd-insert':'cd-insert','cd-tray':'cd-tray'}[route];if(mode)return mode;throw Error('Поддерживаются ссылки J-card, Cassette Label и CD')}
+function cdReferenceTracks(raw){
+ return String(raw).split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>{
+  const duration=line.match(/\((\d+:\d{2}(?::\d{2})?)\)\s*$/),seconds=duration?parseTrackDuration(duration[1]):null;
+  // URL hydration keeps the written duration, including 0:00 and leading zeros.
+  const [parsed]=parseTracks(duration&&seconds===null?line.slice(0,duration.index):line,true),track=parsed||{id:uid(),title:'',artist:'',seconds:0};
+  if(duration&&duration[1].length<=16)Object.assign(track,{referenceDuration:duration[1],referenceDurationSeconds:track.seconds});
+  return track;
+ });
+}
 export function referencePosition(p,xPercent,yPercent,w,h,rotation=0,surface='outer',canonical=true,anchored=false){
  const {w:W,h:H}=dimensions(p,surface),cd=surface.startsWith('cd'),insert=['cdFront','cdInside'].includes(surface),canonicalWidth=8476*REFERENCE_UNIT,rawX=(canonical&&insert?canonicalWidth:W)*xPercent/100-(canonical&&insert&&anchored&&surface==='cdFront'?canonicalWidth-W:0),cx=cd?(canonical&&insert?clamp(rawX,W*.02,W*.98):rawX):surface.startsWith('label')?W*xPercent/100:referenceCenterX(p,xPercent,canonical),cy=H*yPercent/100,a=rotation*Math.PI/180;
  return {x:cx-(w*Math.cos(a)-h*Math.sin(a))/2,y:cy-(w*Math.sin(a)+h*Math.cos(a))/2};
@@ -17,7 +26,7 @@ export function importReference(p,url){
  const u=new URL(url),q=u.searchParams,mode=referenceMode(url),label=mode==='label',cd=isCDMode(mode);for(const key of ['referenceCoverChoices','referenceBackgroundChoices','referenceBackgroundChoicesScope','referenceCoverIndex','referenceCoverIndices','referenceRequestedCoverIndex','referenceMusicMetadata','referenceSideMusic','referenceMusicMetadataSource','referenceArtworkSource','referenceFlowArchive','referenceFlowTemplate','referenceCDContentTemplate'])delete p[key];
  p.editorMode=mode;
  Object.assign(p.data,{artist:q.get('musicArtist')||'',album:q.get('musicAlbum')||'',note:'',stereo:q.get('musicDS')??'STEREO SURROUND',url:q.get('playlistUrl')||'',lyrics:q.get('musicLyrics')||'',production:label?(q.get('musicPL')??q.get('musicProd')??''):(q.get('musicProd')??q.get('musicPL')??''),...recordLabelMetadata([])});
- for(const side of ['A','B'])p.data[side]=q.has('music'+side)?parseTracks(q.get('music'+side).replace(/\|/g,'\n'),true):[];
+ for(const side of ['A','B']){const raw=q.get('music'+side)?.replace(/\|/g,'\n');p.data[side]=raw===undefined?[]:cd?cdReferenceTracks(raw):parseTracks(raw,true)};
  delete p.layout.panelWidths;delete p.layout.referenceTemplate;
  if(label)Object.assign(p.layout,CASSETTE_TEMPLATE,{sync:referenceSynced(q)});else if(!cd)Object.assign(p.layout,referenceLayout(q));
  const bg=q.get('bg')?.split('.')[0];p.settings.bg=label||mode==='cd-label'?'#ffffff':'#f9f3ea';

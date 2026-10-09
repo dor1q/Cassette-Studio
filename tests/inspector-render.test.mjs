@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {esc,makeLayer,panelRects,createProject} from '../src/model.js';
+import {esc,makeLayer,panelRects,createProject,importReference} from '../src/model.js';
 import {inspectorSection,bindInspectorSections} from '../src/inspector-sections.js';
 import {groupFor} from '../src/flow-editing.js';
 import {selectionFrame} from '../src/selection-edit.js';
 import {cdContentControls} from '../src/cd-content-edit.js';
+import {cdTrayFontInspectorControls} from '../src/cd-tray-font-ui.js';
 
 // Exercise the actual inspector renderer without a browser or music service.
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
@@ -25,14 +26,14 @@ function render(layer,{mode='jcard',project=createProject(),joinColumns=true,sur
    return controls;
   }
  };
- const p=project,names=['current','$','prop','propCheck','propSelect','btn','fonts','p','esc','imageZoomControls','cropEditing','mode','panelRects','surface','albumStyleControls','syncImageZoom','inspectorSection','bindInspectorSections','editFrame','groupFor','joinColumns','cdContentControls'];
+ const p=project,names=['current','$','prop','propCheck','propSelect','btn','fonts','p','esc','imageZoomControls','cropEditing','mode','panelRects','surface','albumStyleControls','syncImageZoom','inspectorSection','bindInspectorSections','editFrame','groupFor','joinColumns','cdContentControls','cdTrayFontInspectorControls'];
  const prop=(label,key,type='number',attrs='')=>`<label>${esc(label)}<${type==='textarea'?'textarea':'input'} data-prop="${key}" ${attrs}></label>`;
  const propCheck=(label,key)=>`<label><input type="checkbox" data-prop="${key}">${esc(label)}</label>`;
  const propSelect=(label,key,options)=>`<label>${esc(label)}<select data-prop="${key}">${options.map(([value,text])=>`<option value="${esc(value)}">${esc(text)}</option>`).join('')}</select></label>`;
  const btn=(label,action)=>`<button data-action="${action}">${esc(label)}</button>`;
  const values=[()=>layer,()=>inspector,prop,propCheck,propSelect,btn,['Arial'],p,esc,
   ()=>'<input data-image-zoom type="range"><button data-action="reset-crop">Целиком</button>',false,mode,panelRects,surface,
-  ()=>'<input data-album-style="font"><input data-album-style="size">',()=>{},inspectorSection,bindInspectorSections,()=>selectionFrame(p,layer,surface,joinColumns),groupFor,joinColumns,cdContentControls];
+  ()=>'<input data-album-style="font"><input data-album-style="size">',()=>{},inspectorSection,bindInspectorSections,()=>selectionFrame(p,layer,surface,joinColumns),groupFor,joinColumns,cdContentControls,cdTrayFontInspectorControls];
  new Function(...names,renderer+';renderInspector();')(...values);
  if(!controls.length)inspector.querySelectorAll();
  return {html:inspector.innerHTML,controls};
@@ -92,6 +93,10 @@ test('actual CD contents inspector shows field visibility and no cassette A/B co
  for(const key of ['hideArtist','hideAlbum','hideTracks','hideLyrics','showProduction'])assert.match(content,new RegExp(`data-track-option="${key}"`));
  assert.doesNotMatch(content,/data-track-option="(?:sideA|sideB|sideText|showSide)"/);
  assert.match(html,/data-prop="font"/);assert.match(html,/data-prop="x"/);
+ importReference(p,'https://vhs.texs.org/en/cd-tray?dc=1&musicA=SHORTTOKEN');
+ const tracks=p.surfaces.cdTray.filter(layer=>layer.source==='cdTracks'),tray=()=>render(tracks[0],{mode:'cd-tray',project:p,surface:'cdTray'}).html;
+ assert.match(tray(),/data-action="cd-tray-auto-font"/);assert.doesNotMatch(tray(),/data-prop="autoFit"/);assert.match(tray(),/подобран автоматически/);
+ tracks[1].size=4;assert.match(tray(),/разные размеры/);assert.doesNotMatch(tray(),/подобран автоматически/);
 });
 
 test('a locked reverse CD column disables content without disabling current typography',()=>{

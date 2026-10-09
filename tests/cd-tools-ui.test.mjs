@@ -7,6 +7,8 @@ import * as layout from '../src/cd-layout.js';
 import * as label from '../src/cd-label-text.js';
 import * as poster from '../src/cd-tray-poster.js';
 import * as content from '../src/cd-content-edit.js';
+import * as trayFont from '../src/cd-tray-font.js';
+import * as trayFontUI from '../src/cd-tray-font-ui.js';
 import * as selection from '../src/selection-edit.js';
 import * as formats from '../src/media-formats.js';
 import * as editorActions from '../src/editor-actions.js';
@@ -21,7 +23,7 @@ function harness(mode='cd-label',surface=formats.modeDefaultSurface(mode),{realC
  const p=model.createProject();p.editorMode=mode;const callbacks=new Map(),history=[],saved=[],toasts=[],outputs=new Map();
  const sectionControls=['artist','album','cdTracks','production'].map(source=>({dataset:{cdSection:source},checked:true,disabled:false})),posterControls=['opacity','blur','scale'].map(key=>({dataset:{cdPoster:key},value:'0'}));
  const panel={querySelector(selector){if(!outputs.has(selector))outputs.set(selector,{});return outputs.get(selector)},querySelectorAll(selector){return selector==='[data-cd-section]'?sectionControls:selector==='[data-cd-poster]'?posterControls:[]}};
- const context=vm.createContext({...model,...layout,...label,...poster,...content,...selection,...formats,...editorActions,rebuildReferenceCDContents,syncCDTools,p,mode,surface,selected:'',joinColumns:false,projectRevision:0,saveTimer:undefined,
+ const context=vm.createContext({...model,...layout,...label,...poster,...content,...trayFont,...trayFontUI,...selection,...formats,...editorActions,rebuildReferenceCDContents,syncCDTools,p,mode,surface,selected:'',joinColumns:false,projectRevision:0,saveTimer:undefined,
   updateReferenceFlapProduction(){},updateRecordLabelLogoColors(){},mirror(){},clearTimeout(){},setTimeout(){return 0},saveProject:async()=>{},
   document:{activeElement:null,addEventListener(type,callback){callbacks.set(type,callback)}},$(){return panel},
   checkpoint(){history.push(model.clone(context.p))},changed(options){saved.push(options)},toast(message){toasts.push(message)},draw(){},full(){},renderPanel(){},renderInspector(){}});
@@ -32,6 +34,16 @@ function harness(mode='cd-label',surface=formats.modeDefaultSurface(mode),{realC
  return {p,context,history,saved,toasts,outputs,panel,sectionControls,posterControls,input(dataset,value,{checked=false,type='checkbox',min='',max=''}={}){callbacks.get('input')({target:{dataset,value:String(value),checked,type,min,max,tagName:'INPUT',hasAttribute(){return false}}})},action(action,source){context.cdAction(action,{dataset:{source},textContent:'Выходные данные'})}};
 }
 const controls={field:(text,key,value)=>`<input data-bind="data.${key}" value="${model.esc(value)}">`,btn:(text,action,attrs)=>`<button data-action="${action}" ${attrs||''}>${text}</button>`,select:(text,key,value,items,group)=>`<select data-bind="${group}.${key}">${items.map(([key,text])=>`<option>${text}</option>`).join('')}</select>`,check:()=>''};
+test('actual auto-size restore button preserves manual placement with one undo and protects locked columns',()=>{
+ const h=harness('cd-tray','cdTray',{realChanged:true});model.importReference(h.p,'https://vhs.texs.org/en/cd-tray?dc=1&musicA=SHORTTOKEN+%281%3A00%29');
+ const first=h.p.surfaces.cdTray.find(l=>l.source==='cdTracks');first.size=1.7;first.x+=3;const before=model.clone(h.p),x=first.x;
+ h.action('cd-tray-auto-font');assert.equal(h.history.length,1);assert.deepEqual(h.history[0],before);assert.equal(first.x,x);assert.ok(Math.abs(first.size-72*25.4/600)<1e-9);assert.equal(trayFontUI.cdTrayFontState(h.p,'cdTray').automatic,true);
+ const second=h.p.surfaces.cdTray.find(l=>l.source==='cdTracks'&&l.cdColumnIndex===1);second.size=4;h.context.changed({});assert.equal(second.size,4);assert.equal(trayFontUI.cdTrayFontState(h.p,'cdTray').automatic,false);assert.equal(trayFontUI.cdTrayFontState(h.p,'cdTray').mixed,true);assert.match(trayFontUI.cdTrayFontHint(trayFontUI.cdTrayFontState(h.p,'cdTray')),/разные размеры/);
+ const inspectorControls={btn:controls.btn,propCheck:(_,key)=>'<input data-prop="'+key+'">'};assert.match(trayFontUI.cdTrayFontInspectorControls(h.p,first,'cdTray',inspectorControls),/data-action="cd-tray-auto-font"/);assert.doesNotMatch(trayFontUI.cdTrayFontInspectorControls(h.p,first,'cdTray',inspectorControls),/data-prop="autoFit"/);assert.match(trayFontUI.cdTrayFontInspectorControls(h.p,{source:'cdTracks'},'cdTray',inspectorControls),/data-prop="autoFit"/);assert.match(trayFontUI.cdTrayFontInspectorControls(h.p,{...first,referenceBlockCopy:true},'cdTray',inspectorControls),/data-prop="autoFit"/);
+ first.size=2;h.context.changed({});assert.equal(first.size,2);assert.equal(trayFontUI.cdTrayFontState(h.p,'cdTray').automatic,false);
+ h.p.surfaces.cdTray.find(l=>l.source==='cdTracks'&&l.cdColumnIndex===1).locked=true;const locked=model.clone(h.p);h.action('cd-tray-auto-font');assert.deepEqual(h.p,locked);assert.equal(h.history.length,1);assert.match(h.toasts.at(-1),/закрепление/);
+ const html=cdTextPanel(h.p,'cd-tray','cdTray',controls);assert.match(html,/data-cd-tray-font-hint/);assert.match(html,/data-action="cd-tray-auto-font"[^>]+disabled/);assert.doesNotMatch(cdTextPanel(h.p,'cd-tray','cdTrayInside',controls),/cd-tray-auto-font/);
+});
 test('CD Label main text panel exposes four field toggles with their actual visibility',()=>{
  const p=model.createProject();p.surfaces.cdLabel.find(layer=>layer.source==='album').visible=false;
  const html=cdTextPanel(p,'cd-label','cdLabel',controls);
