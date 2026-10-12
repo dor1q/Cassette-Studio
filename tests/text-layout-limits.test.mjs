@@ -18,7 +18,7 @@ test('an album-only spine uses its own smaller face for line height and baseline
 
 test('a wrapped album-only continuation has no invisible artist leading',()=>{
  const p=createProject();p.data.artist='AA';p.data.album='BBBB CCCC';
- const l=layer({source:'spine',referenceSpine:true,size:3,w:10,albumStyle:{size:1}});
+ const l=layer({source:'spine',referenceSpine:true,size:3,w:7,albumStyle:{size:1}});
  const result=textLayout(boundText(p,l,'outer'),l,{project:p,measureText:metric});
  assert.equal(result.lines.at(-1),'CCCC');assert.equal(result.lineHeights.at(-1),1.2);
  assert.ok(Math.abs(result.baselines.at(-1)-(result.height-1.2+.9))<1e-9);

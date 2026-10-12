@@ -81,7 +81,7 @@ test('sample J-card URL puts its unavailable uploaded artwork on the reverse and
 });
 test('global track flags and title separator use ts/sep independently of flap tf',()=>{
  const p=createProject();importReference(p,url('jcard',{ts:'7',tf:'0',sep:'1'}));const back=p.surfaces.outer.find(l=>l.referenceFlow),flap=p.surfaces.outer.find(l=>l.source==='flapTracks');
- assert.doesNotMatch(boundText(p,back,'outer'),/1\. |— Artist|2:00/);assert.match(boundText(p,flap,'outer'),/1\. First — Artist \(2:00\)/);assert.equal(boundText(p,p.surfaces.outer.find(l=>l.source==='spine'),'outer'),'Artist | Album');
+ assert.doesNotMatch(boundText(p,back,'outer'),/1\. |— Artist|2:00/);assert.match(boundText(p,flap,'outer'),/1\. First — Artist \(2:00\)/);assert.equal(boundText(p,p.surfaces.outer.find(l=>l.source==='spine'),'outer'),'Artist Album');assert.match(boundText(p,back,'outer'),/Artist \| Album/);
  const label=createProject();importReference(label,url('cassette',{ts:'7',tf:'0'}));assert.doesNotMatch(boundText(label,label.surfaces.labelA.find(l=>l.source==='tracks'),'labelA'),/1\. |— Artist|2:00/);
 });
 test('default cover framing, opacity, hidden cover and sixfold cassette zoom survive reload',()=>{

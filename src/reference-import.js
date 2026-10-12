@@ -7,6 +7,8 @@ import {applyReferenceBlocks} from './reference-freeplace.js';
 import {REFERENCE_UNIT,referenceFont,referenceLayout,referenceCenterX,referenceFlags,splitReferenceCaptions,referenceSectionColors,referenceSynced,referenceSurface,referencePlacement,decodedText,referencePixelUnit,referenceCodeUnit} from './reference-format.js';
 import {importReferenceCD} from './reference-cd.js';
 import {isCDMode,modeDefaultSurface} from './media-formats.js';
+import {referenceJCardFontPreset} from './jcard-font.js';
+import {referenceJCardPlaylistSpineFromParams} from './jcard-spine.js';
 
 export function referenceMode(url){const u=new URL(url);if(u.hostname!=='vhs.texs.org')throw Error('Нужна ссылка vhs.texs.org');const route=/\/([^/]+)\/?$/.exec(u.pathname)?.[1],mode={cassette:'label',jcard:'jcard',cd:'cd-label','cd-insert':'cd-insert','cd-tray':'cd-tray'}[route];if(mode)return mode;throw Error('Поддерживаются ссылки J-card, Cassette Label и CD')}
 function cdReferenceTracks(raw){
@@ -25,6 +27,7 @@ export function referencePosition(p,xPercent,yPercent,w,h,rotation=0,surface='ou
 export function importReference(p,url){
  const u=new URL(url),q=u.searchParams,mode=referenceMode(url),label=mode==='label',cd=isCDMode(mode);for(const key of ['referenceCoverChoices','referenceBackgroundChoices','referenceBackgroundChoicesScope','referenceCoverIndex','referenceCoverIndices','referenceRequestedCoverIndex','referenceMusicMetadata','referenceSideMusic','referenceMusicMetadataSource','referenceArtworkSource','referenceFlowArchive','referenceFlowTemplate','referenceCDContentTemplate'])delete p[key];
  p.editorMode=mode;
+ if(mode==='jcard')p.referenceJCardPlaylistSpine=referenceJCardPlaylistSpineFromParams(q);else delete p.referenceJCardPlaylistSpine;
  Object.assign(p.data,{artist:q.get('musicArtist')||'',album:q.get('musicAlbum')||'',note:'',stereo:q.get('musicDS')??'STEREO SURROUND',url:q.get('playlistUrl')||'',lyrics:q.get('musicLyrics')||'',production:label?(q.get('musicPL')??q.get('musicProd')??''):(q.get('musicProd')??q.get('musicPL')??''),...recordLabelMetadata([])});
  for(const side of ['A','B']){const raw=q.get('music'+side)?.replace(/\|/g,'\n');p.data[side]=raw===undefined?[]:cd?cdReferenceTracks(raw):parseTracks(raw,true)};
  delete p.layout.panelWidths;delete p.layout.referenceTemplate;
@@ -58,19 +61,21 @@ function importJCard(p,q){
  p.surfaces.outer=p.surfaces.outer.filter(t=>!['A','B','artist','album','production','note'].includes(t.source));
  const flapFlags=referenceFlags(q.get('tf')),extended=l.flapShape==='extended',flapOptions={artists:!(flapFlags&1),numbers:!(flapFlags&2),durations:!(flapFlags&4),bullets:!(flapFlags&8),inlineTracks:!extended,hideTracks:!!(hidden&16),showProduction:!!(hidden&32),showSide:q.get('hsif')!=='1'};
  const flapFrame=extended?{x:36*REFERENCE_UNIT,y:40*REFERENCE_UNIT,w:l.flap-72*REFERENCE_UNIT,h:l.height-80*REFERENCE_UNIT,rotation:0}:{x:l.flap-1,y:4,w:l.height-8,h:l.flap-2,rotation:90};
- p.surfaces.outer.push(makeLayer('text',{source:'flapTracks',name:'Треки A/B на клапане',...flapFrame,align:extended?'left':'center',lineHeight:extended?1.35:1.5,color:colors.back||fg,referenceOwnColor:!!colors.back,flapTapered:l.flapShape==='tapered',trackOptions:flapOptions,...referenceFont(q.get('fb'),44*REFERENCE_UNIT)}));
- const spine=p.surfaces.outer.find(t=>t.source==='spine');Object.assign(spine,{x:l.flap+l.spine-2,y:4,w:l.height-8,h:l.spine-4,rotation:90,align:'center',lineHeight:clamp(Number(q.get('slh'))||1.4,.5,4),referenceSpine:true,hideArtist:!!(hidden&2),hideAlbum:!!(hidden&1),spineTwoLines:l.spineTwoLines,visible:!(hidden&1&&hidden&2),color:colors.spine||fg,referenceOwnColor:!!colors.spine,...referenceFont(q.get('f2'),94*REFERENCE_UNIT)});
- if(q.has('f3')||colors.album)spine.albumStyle={...referenceFont(q.get('f3')||q.get('f2'),94*REFERENCE_UNIT),color:colors.album||colors.spine||fg};spine.referenceAlbumOwnColor=!!colors.album||!!colors.spine;
+ const flapFont=referenceJCardFontPreset(p,q,'flap'),spineFont=referenceJCardFontPreset(p,q,'spine');
+ p.surfaces.outer.push(makeLayer('text',{source:'flapTracks',literalText:true,name:'Треки A/B на клапане',...flapFrame,align:extended?'left':'center',lineHeight:extended?1.35:1.5,color:colors.back||fg,referenceOwnColor:!!colors.back,flapTapered:l.flapShape==='tapered',trackOptions:flapOptions,...flapFont.style,...flapFont.state}));
+ const spine=p.surfaces.outer.find(t=>t.source==='spine');Object.assign(spine,{literalText:true,x:l.flap+l.spine-2,y:4,w:l.height-8,h:l.spine-4,rotation:90,align:'center',lineHeight:clamp(Number(q.get('slh'))||1.4,.5,4),referenceSpine:true,hideArtist:!!(hidden&2),hideAlbum:!!(hidden&1),spineTwoLines:l.spineTwoLines,visible:!(hidden&1&&hidden&2),color:colors.spine||fg,referenceOwnColor:!!colors.spine,...spineFont.style,...spineFont.state});
+ if(q.has('f3')||colors.album){const albumFont=referenceJCardFontPreset(p,q,'spine',{album:true});spine.albumStyle={...albumFont.style,color:colors.album||colors.spine||fg};Object.assign(spine,albumFont.state)}spine.referenceAlbumOwnColor=!!colors.album||!!colors.spine;
  p.surfaces.inner=[];
  rebuildReferenceFlow(p,makeLayer('text',{source:'referenceContents',color:colors.inside||fg,referenceOwnColor:!!colors.inside,...style,autoFit:false,lineHeight:1.4,align:'left',hideArtist:!!(hidden&2),hideAlbum:!!(hidden&1),hideA:!!(hidden&64),hideB:!!(hidden&128),trackOptions:{inlineTracks:false,showSide:q.get('hsib')!=='1'}}));
- if(q.has('musicDS')||q.has('musicDSh'))p.surfaces.outer.push(makeLayer('text',{category:'referenceStereo',source:'stereo',name:'Надпись Stereo из ссылки',visible:q.get('musicDSh')!=='1',x:l.flap-3,y:74,w:24,h:3,rotation:90,size:2,color:fg}));
+ if(q.has('musicDS')||q.has('musicDSh'))p.surfaces.outer.push(makeLayer('text',{category:'referenceStereo',source:'stereo',literalText:true,name:'Надпись Stereo из ссылки',visible:q.get('musicDSh')!=='1',x:l.flap-3,y:74,w:24,h:3,rotation:90,size:2,color:fg}));
 }
 function importLabel(p,q){
  const sx=p.layout.labelW/251.16,sy=p.layout.labelH/118.43,hidden=referenceFlags(q.get('ch')),colors=p.settings.referenceSectionColors;
- const text=(source,name,x,y,w,h,size,more={})=>makeLayer('text',{source,name,x:x*sx,y:y*sy,w:w*sx,h:h*sy,size,color:p.settings.fg,align:'center',...more});
+ // The public label renders these fields as raw strings; punctuation is part of the album metadata.
+ const text=(source,name,x,y,w,h,size,more={})=>makeLayer('text',{source,name,x:x*sx,y:y*sy,w:w*sx,h:h*sy,size,color:p.settings.fg,align:'center',literalText:true,autoFit:false,nowrap:true,singleLine:true,allowTextOverflow:true,...more});
  const artist=referenceFont(q.get('fb'),10*sy,sy,{font:'Arial',weight:700}),album=referenceFont(q.get('fi'),7*sy,sy,{font:'Arial',weight:600,italic:true}),tracks=referenceFont(q.get('f2'),5.2*sy,sy,{font:'Arial',weight:500});
  const baseline=(source,name,y,style,visible)=>text(source,name,6,y-style.size/sy*.9,239.16,style.size/sy*1.4,style.size,{...style,visible,color:colors[source==='artist'?'back':'inside']||p.settings.fg,referenceOwnColor:!!colors[source==='artist'?'back':'inside']});
- for(const side of ['A','B'])p.surfaces['label'+side]=[baseline('artist','Исполнитель',19,artist,!(hidden&1)),text('tracks','Треки',6,24,239.16,20,tracks.size,{...tracks,lineHeight:1.3,align:p.settings.referenceTrackAlign,color:colors.spine||p.settings.fg,referenceOwnColor:!!colors.spine,visible:!(hidden&(side==='A'?4:8))}),baseline('album','Альбом',102.43,album,!(hidden&2)),text('sideText','Префикс стороны',218.16,55.5,22,6,5*sy,{spacing:.6*sx,uppercase:true,visible:q.get('hsi')!=='1'}),text('side','Сторона',218.16,60.3,22,16,13*sy,{bold:true,visible:q.get('hsi')!=='1'}),text('production','Выходные данные',6,105.1,239.16,7,3.7*sy,{opacity:.9,visible:!(hidden&16)})];
+ for(const side of ['A','B'])p.surfaces['label'+side]=[baseline('artist','Исполнитель',19,artist,!(hidden&1)),text('tracks','Треки',6,24,239.16,20,tracks.size,{...tracks,lineHeight:1.3,nowrap:false,clipText:true,align:p.settings.referenceTrackAlign,color:colors.spine||p.settings.fg,referenceOwnColor:!!colors.spine,visible:!(hidden&(side==='A'?4:8))}),baseline('album','Альбом',102.43,album,!(hidden&2)),text('sideText','Префикс стороны',218.16,55.5,22,6,5*sy,{spacing:.6*sx,uppercase:true,visible:q.get('hsi')!=='1'}),text('side','Сторона',218.16,60.3,22,16,13*sy,{bold:true,visible:q.get('hsi')!=='1'}),text('production','Выходные данные',6,105.1,239.16,7,3.7*sy,{opacity:.9,visible:!(hidden&16)})];
 }
 function importCodes(p,q,u,mode){
  const hidden=referenceFlags(q.get(mode==='label'?'ch':mode==='cd-label'||mode==='cd-tray'?'cdh':'jh')),color=(key,explicit)=>q.get(key)==='1'?( /^#?[a-f0-9]{6}$/i.test(q.get(explicit)||'')?'#'+q.get(explicit).replace(/^#/,''):p.settings.fg):'#000000';

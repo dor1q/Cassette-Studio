@@ -29,10 +29,10 @@ export function printLayout(items,{mode='jcard',paper='a4',copies=1,bleed=0,shee
    // as the inside of a complete pair. Unnamed legacy items retain pair order.
    const reverse=r.s==='inner'||r.s==='cdInside'||r.s==='cdTrayInside'||(folded&&!r.s&&i%2===1);
    const rotate=reverse&&((w>h&&duplexFlip==='long')||(w<=h&&duplexFlip==='short'));
-   // CD fronts and backs must retain the same physical displacement after
+   // Folded fronts and backs must retain the same physical displacement after
    // the paper is flipped. Reflect the reverse offset on the binding axis.
-   const cdReverse=reverse&&(mode==='cd-insert'||mode==='cd-tray');
-   const dx=Number(offsetX)*(cdReverse&&!rotate?-1:1),dy=Number(offsetY)*(cdReverse&&rotate?-1:1);
+   const foldedReverse=reverse&&folded;
+   const dx=Number(offsetX)*(foldedReverse&&!rotate?-1:1),dy=Number(offsetY)*(foldedReverse&&rotate?-1:1);
    for(let slot=0;slot<Math.min(slots,copies-c);slot++){
     const y=slots===1?(h-r.h)/2:(h-2*r.h-10)/2+slot*(r.h+10);
     add(i,(w-r.w)/2,rotate?h-r.h-y:y,rotate?180:0,undefined,dx,dy);

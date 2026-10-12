@@ -31,9 +31,9 @@ export function updateReferenceFlapProduction(project){
  if(!production&&!short)return null;
  if(!production&&flap.referenceFlapProductionCreated)return null;
  if(!production){
-  const keys=['font','fontWeight','fontStretch','bold','italic','uppercase','smallcaps','spacing','outline','outlineColor','shadow','shadowColor','opacity','color','referenceOwnColor','referenceHiddenByTextColor'];
+  const keys=['font','fontWeight','fontStretch','bold','italic','uppercase','smallcaps','spacing','outline','outlineColor','shadow','shadowColor','opacity','color','literalText','referenceOwnColor','referenceHiddenByTextColor'];
   const style=Object.fromEntries(keys.filter(key=>Object.hasOwn(flap,key)).map(key=>[key,flap[key]]));
-  production=makeLayer('text',{...style,source:'flapProduction',name:'Выходные данные на коротком клапане',referenceFlapProduction:true,size:flap.size*.85,lineHeight:1.5,align:'center',autoFit:false});
+  production=makeLayer('text',{...style,source:'flapProduction',name:'Выходные данные на коротком клапане',referenceFlapProduction:true,size:flap.size*.85,...(flap.referenceJCardFontKind==='flap'?{referenceJCardFlapProductionSize:flap.size*.85}:{}),lineHeight:1.5,align:'center',autoFit:false});
   project.surfaces.outer.push(production);
  }
  flap.referenceFlapProductionCreated=true;

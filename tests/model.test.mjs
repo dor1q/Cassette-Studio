@@ -22,7 +22,7 @@ test('reference track flags and section typography preserve independent lists',(
  assert.doesNotMatch(boundText(p,flap,'outer'),/3:07|fakemink/);
  p.data.A[0].artist='fakemink';assert.match(boundText(p,back,'outer'),/Kill Everything — fakemink \(3:07\)/);
  p.data.album='Changed album';assert.match(boundText(p,back,'outer'),/^fakemink - Changed album/);
- assert.equal(boundText(p,p.surfaces.outer.find(l=>l.source==='spine'),'outer'),'fakemink - Changed album');
+ assert.equal(boundText(p,p.surfaces.outer.find(l=>l.source==='spine'),'outer'),'fakemink Changed album');
  const other=createProject();importReference(other,'https://vhs.texs.org/en/jcard?musicArtist=Test&tf=a');
  const options=other.surfaces.outer.find(l=>l.source==='flapTracks').trackOptions;
  assert.equal(options.numbers,false);assert.equal(options.bullets,false);assert.equal(options.artists,true);assert.equal(options.durations,true);

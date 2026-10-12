@@ -87,8 +87,20 @@ function paragraphWords(glyphs){
  return words;
 }
 
-export function layoutStyledText(value,layer,{measureText,albumSpan=null,literalText=!!layer.literalText,markdownHeadings=layer.markdownHeadings!==false}={}){
- const source=paragraphs(styledGlyphs(value,layer,{albumSpan,literalText}),literalText,markdownHeadings);
+function singleLineGlyphs(glyphs){
+ const result=[];
+ for(const glyph of glyphs){
+  if(/^[\t\r\n ]+$/.test(glyph.text)){
+   if(result.length&&result.at(-1).text!==' ')result.push({...glyph,text:' '});
+  }else result.push(glyph);
+ }
+ if(result.at(-1)?.text===' ')result.pop();
+ return result;
+}
+
+export function layoutStyledText(value,layer,{measureText,albumSpan=null,literalText=!!layer.literalText,markdownHeadings=layer.markdownHeadings!==false,nowrap=!!layer.nowrap,singleLine=!!layer.singleLine}={}){
+ const glyphs=styledGlyphs(value,layer,{albumSpan,literalText});
+ const source=paragraphs(nowrap&&singleLine?singleLineGlyphs(glyphs):glyphs,literalText,markdownHeadings);
  const calculate=size=>{
   const lineRuns=[],widths=[],availableWidths=[],lineHeights=[],baselines=[],insets=[];
   let top=0;
@@ -110,6 +122,7 @@ export function layoutStyledText(value,layer,{measureText,albumSpan=null,literal
    top+=height;
   };
   for(const paragraph of source){
+   if(nowrap){append(paragraph);continue}
    const words=paragraphWords(paragraph);if(!words.length){append([]);continue}
    let current=[];
    for(const word of words){
@@ -129,7 +142,9 @@ export function layoutStyledText(value,layer,{measureText,albumSpan=null,literal
   const widthScale=layout.widths.reduce((minimum,width,index)=>width>layout.availableWidths[index]?Math.min(minimum,layout.availableWidths[index]/width):minimum,1);
   size=Math.max(.1,size*Math.min(.96,layer.h/layout.height,widthScale));layout=calculate(size);
  }
- return {...layout,size,overflow:layout.height>layer.h+.1||tooWide(.1)};
+ // A clipped frame intentionally hides excess text, so it is ready for
+ // export even when the full text would extend outside its visible bounds.
+ return {...layout,size,overflow:!layer.clipText&&(layout.height>layer.h+.1||!layer.allowTextOverflow&&tooWide(.1))};
 }
 
 export function fittingLineCount(layout,height){

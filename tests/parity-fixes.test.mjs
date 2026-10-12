@@ -92,7 +92,7 @@ test('two-up duplex keeps page pairs and mirrors slot positions for short-edge f
 test('album-specific typography is retained across wrapped lines and uppercase',()=>{
  const p=createProject();p.data.artist='Artist';p.data.album='A Very Long Album Name';
  const layer=makeLayer('text',{source:'spine',referenceSpine:true,uppercase:true,albumStyle:{font:'Times New Roman',color:'#123456',uppercase:true,size:2}});
- const lines=['ARTIST - A VERY','LONG ALBUM NAME'];
+ const lines=['ARTIST A VERY','LONG ALBUM NAME'];
  assert.equal(spineTextRuns(lines[0],lines,0,layer,p).filter(r=>r.style).map(r=>r.text).join(''),'A VERY');
  assert.equal(spineTextRuns(lines[1],lines,1,layer,p).filter(r=>r.style).map(r=>r.text).join(''),'LONG ALBUM NAME');
 });

@@ -9,6 +9,8 @@ import * as poster from '../src/cd-tray-poster.js';
 import * as content from '../src/cd-content-edit.js';
 import * as trayFont from '../src/cd-tray-font.js';
 import * as trayFontUI from '../src/cd-tray-font-ui.js';
+import * as jcardFont from '../src/jcard-font.js';
+import * as jcardFontUI from '../src/jcard-font-ui.js';
 import * as tracks from '../src/cd-track-editing.js';
 import * as selection from '../src/selection-edit.js';
 import * as formats from '../src/media-formats.js';
@@ -29,7 +31,7 @@ function harness(mode='cd-label',surface=formats.modeDefaultSurface(mode),{realC
  const inspectorFields=new Map(['size','x','y','w','h','rotation'].map(key=>[key,{dataset:{prop:key},value:'0'}])),inspectorHint={textContent:''},inspectorButton={disabled:false};
  const inspectorFontControls={querySelector(selector){return selector==='.hint'?inspectorHint:selector==='[data-action="cd-tray-auto-font"]'?inspectorButton:null}};
  const inspector={renders:0,querySelector(selector){if(selector==='[data-cd-tray-font-inspector]')return inspectorFontControls;return [...inspectorFields].find(([key])=>selector==='[data-prop="'+key+'"]')?.[1]||null}};
- const context=vm.createContext({...model,...tracks,...layout,...label,...poster,...content,...trayFont,...trayFontUI,...selection,...formats,...editorActions,rebuildReferenceCDContents,syncCDTools,p,mode,surface,selected:'',joinColumns:false,projectRevision:0,saveTimer:undefined,
+ const context=vm.createContext({...model,...tracks,...layout,...label,...poster,...content,...trayFont,...trayFontUI,...jcardFont,...jcardFontUI,...selection,...formats,...editorActions,rebuildReferenceCDContents,syncCDTools,p,mode,surface,selected:'',joinColumns:false,projectRevision:0,saveTimer:undefined,
   updateReferenceFlapProduction(){},updateRecordLabelLogoColors(){},mirror(){},clearTimeout(){},setTimeout(){return 0},saveProject:async()=>{},
   document:{activeElement:null,addEventListener(type,callback){callbacks.set(type,callback)}},$(id){return id==='inspector'?inspector:panel},
   checkpoint(){history.push(model.clone(context.p))},changed(options){saved.push(options)},toast(message){toasts.push(message)},draw(){},full(){},renderPanel(){},renderInspector(){inspector.renders++}});

@@ -7,6 +7,9 @@ import {groupFor} from '../src/flow-editing.js';
 import {selectionFrame} from '../src/selection-edit.js';
 import {cdContentControls} from '../src/cd-content-edit.js';
 import {cdTrayFontInspectorControls} from '../src/cd-tray-font-ui.js';
+import {referenceJCardFontState} from '../src/jcard-font.js';
+import {jcardFontInspectorControls} from '../src/jcard-font-ui.js';
+import {cassetteTextOverflowControls} from '../src/cassette-text-ui.js';
 
 // Exercise the actual inspector renderer without a browser or music service.
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
@@ -26,14 +29,14 @@ function render(layer,{mode='jcard',project=createProject(),joinColumns=true,sur
    return controls;
   }
  };
- const p=project,names=['current','$','prop','propCheck','propSelect','btn','fonts','p','esc','imageZoomControls','cropEditing','mode','panelRects','surface','albumStyleControls','syncImageZoom','inspectorSection','bindInspectorSections','editFrame','groupFor','joinColumns','cdContentControls','cdTrayFontInspectorControls'];
+ const p=project,names=['current','$','prop','propCheck','propSelect','btn','fonts','p','esc','imageZoomControls','cropEditing','mode','panelRects','surface','albumStyleControls','syncImageZoom','inspectorSection','bindInspectorSections','editFrame','groupFor','joinColumns','cdContentControls','cdTrayFontInspectorControls','referenceJCardFontState','jcardFontInspectorControls','cassetteTextOverflowControls'];
  const prop=(label,key,type='number',attrs='')=>`<label>${esc(label)}<${type==='textarea'?'textarea':'input'} data-prop="${key}" ${attrs}></label>`;
  const propCheck=(label,key)=>`<label><input type="checkbox" data-prop="${key}">${esc(label)}</label>`;
  const propSelect=(label,key,options)=>`<label>${esc(label)}<select data-prop="${key}">${options.map(([value,text])=>`<option value="${esc(value)}">${esc(text)}</option>`).join('')}</select></label>`;
  const btn=(label,action)=>`<button data-action="${action}">${esc(label)}</button>`;
  const values=[()=>layer,()=>inspector,prop,propCheck,propSelect,btn,['Arial'],p,esc,
   ()=>'<input data-image-zoom type="range"><button data-action="reset-crop">Целиком</button>',false,mode,panelRects,surface,
-  ()=>'<input data-album-style="font"><input data-album-style="size">',()=>{},inspectorSection,bindInspectorSections,()=>selectionFrame(p,layer,surface,joinColumns),groupFor,joinColumns,cdContentControls,cdTrayFontInspectorControls];
+  ()=>'<input data-album-style="font"><input data-album-style="size">',()=>{},inspectorSection,bindInspectorSections,()=>selectionFrame(p,layer,surface,joinColumns),groupFor,joinColumns,cdContentControls,cdTrayFontInspectorControls,referenceJCardFontState,jcardFontInspectorControls,cassetteTextOverflowControls];
  new Function(...names,renderer+';renderInspector();')(...values);
  if(!controls.length)inspector.querySelectorAll();
  return {html:inspector.innerHTML,controls};
@@ -105,4 +108,12 @@ test('a locked reverse CD column disables content without disabling current typo
  assert.match(section(html,'contents'),/<fieldset[^>]*disabled/);
  assert.equal(controls.find(control=>control.dataset.prop==='font').disabled,false);
  assert.equal(controls.find(control=>control.dataset.prop==='x').disabled,false);
+});
+
+test('actual imported J-card inspector exposes original auto sizing for the spine and flap',()=>{
+ const p=importReference(createProject(),'https://vhs.texs.org/en/jcard?musicArtist=Artist&musicAlbum=Album');
+ for(const source of ['spine','flapTracks']){
+  const layer=p.surfaces.outer.find(layer=>layer.source===source),{html}=render(layer,{project:p});
+  assert.match(html,/data-jcard-font-inspector/);assert.match(html,/data-action="jcard-auto-font"/);assert.match(html,/подобран по оригиналу/);
+ }
 });

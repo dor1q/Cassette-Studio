@@ -39,7 +39,7 @@ export function duplicateSelection(project,layer,surface,{joined=true,dx=3,dy=3}
  const group=selectionGroup(project,layer,surface,joined);
  if(group)return copyGroup(group,{dx,dy});
  if(!layer)return [];
- const copy={...referenceFlowCopy(layer,surface),id:uid(),name:layer.name+' копия',x:layer.x+dx,y:layer.y+dy};
+ const copy={...referenceFlowCopy(layer,surface),id:uid(),name:layer.name+' копия',x:layer.x+dx,y:layer.y+dy,standardBlockCopy:true};
  delete copy.referenceCDStandard;
  delete copy.cdTemplate;
  if(layer.source==='cdTracks'&&surface.startsWith('cdTray')&&(layer.cdTrayTrackFlow||layer.cdTemplate)||layer.source==='cdContents'&&(layer.cdContentFlow||layer.referenceCDContent)){

@@ -32,12 +32,12 @@ test('a wrapped emphasis span is rendered with its style on every line',()=>{
 
 test('independent album font, size, spacing and width determine the spine line breaks',()=>{
  const p=createProject();p.data.artist='AA';p.data.album='BB CC';
- const l=layer({source:'spine',referenceSpine:true,w:20,fontStretch:50,align:'center',albumStyle:{font:'Display',size:3,fontStretch:150,spacing:.2,color:'#ff0000'}});p.surfaces.outer=[l];
+ const l=layer({source:'spine',referenceSpine:true,spineTwoLines:true,w:20,fontStretch:50,align:'center',albumStyle:{font:'Display',size:3,fontStretch:150,spacing:.2,color:'#ff0000'}});p.surfaces.outer=[l];
  const layout=textLayout(boundText(p,l,'outer'),l,{project:p,measureText:metric});
- assert.deepEqual(layout.lines,['AA -','BB','CC']);
+ assert.deepEqual(layout.lines,['AA','BB','CC']);
  assert.ok(Math.abs(layout.widths[1]-18.3)<1e-9);assert.ok(Math.abs(layout.height-8.4)<1e-9);
  const svg=renderSvg(p,'outer',{guides:false,measureText:metric}).svg;
- assert.deepEqual(visible(svg),['AA -','BB','CC']);
+ assert.deepEqual(visible(svg),['AA','BB','CC']);
  assert.match(svg,/transform="scale\(0.5 1\)"/);
  assert.match(svg,/<tspan font-family="Display" font-size="3"[^>]*letter-spacing="0.2"/);
  assert.ok(Math.abs(Number(svg.match(/textLength="([^"]+)"/)[1])-36.6)<1e-9);
@@ -49,7 +49,7 @@ test('album letter casing and inline emphasis are applied before their metrics a
  const l=layer({source:'spine',referenceSpine:true,uppercase:true,w:100,albumStyle:{font:'Display',size:2,uppercase:false}});p.surfaces.outer=[l];
  const calls=[],measureText=(...args)=>{calls.push(args);return metric(...args)};
  const svg=renderSvg(p,'outer',{guides:false,measureText}).svg;
- assert.deepEqual(visible(svg),['ARTIST - Mixed Case']);
+ assert.deepEqual(visible(svg),['ARTIST Mixed Case']);
  assert.ok(calls.some(([text,style])=>text==='Mixed'&&style.font==='Display'&&style.fontWeight===700));
  assert.ok(calls.some(([text,style])=>text==='Case'&&style.font==='Display'&&style.italic));
  assert.ok(calls.every(([text])=>!text.includes('*')));

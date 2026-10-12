@@ -1,8 +1,12 @@
-# Cassette Studio 2.4.5
+# Cassette Studio 2.4.6
 
-Редактор кассет и CD для Windows x64: J-card, Cassette Label, CD Labels, CD Inserts (Cover) и CD Tray Card (Back). Скачайте [portable-приложение](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.5/Cassette-Studio-2.4.5-Portable.exe) без установки либо [установщик](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.5/Cassette-Studio-2.4.5-Setup.exe). Все выпуски доступны в [GitHub Releases](https://github.com/dor1q/Cassette-Studio/releases/latest). Node.js и отдельный браузер для готового приложения не нужны. Проекты и подключения хранятся отдельно от программы; подробности — в [WINDOWS.md](WINDOWS.md).
+Редактор кассет и CD для Windows x64: J-card, Cassette Label, CD Labels, CD Inserts (Cover) и CD Tray Card (Back). Скачайте [portable-приложение](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.6/Cassette-Studio-2.4.6-Portable.exe) без установки либо [установщик](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.6/Cassette-Studio-2.4.6-Setup.exe). Все выпуски доступны в [GitHub Releases](https://github.com/dor1q/Cassette-Studio/releases/latest). Node.js и отдельный браузер для готового приложения не нужны. Проекты и подключения хранятся отдельно от программы; подробности — в [WINDOWS.md](WINDOWS.md).
 
 Для запуска из исходников установите Node.js и выполните `npm ci`, затем `npm run build`. После этого выполните `npm start` и откройте http://127.0.0.1:8769/ либо запустите `START.cmd`. Для проверки используйте `npm test`; для запуска собственного окна — `npm run desktop`, для сборки Windows-приложения — `npm run desktop:build`.
+
+## Изменения в 2.4.6
+
+Кассетные форматы снова в приоритете. Названия и стандартные подписи сохраняют буквальные символы; импортированные наклейки сохраняют размер шрифта и обрезают длинный треклист по рамке. У корешка восстановлены разделитель, поведение музыкальных источников и автоподбор размера. Смещение двусторонней печати J-card учитывает переворот листа; переразмещение сохраняет отдельные наклейки, картинки и свои надписи. Подробности — в [FIXES_2.4.6.md](FIXES_2.4.6.md).
 
 ## Изменения в 2.4.5
 

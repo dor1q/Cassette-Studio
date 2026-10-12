@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {createProject,clone,parseTracks,parseTrackDuration,serializeTracks,dimensions,makeLayer,esc,clamp,resetSurfaces} from '../src/model.js';
+import {createProject,importReference,clone,parseTracks,parseTrackDuration,serializeTracks,dimensions,makeLayer,esc,clamp,resetSurfaces} from '../src/model.js';
 import {rebuildReferenceCDContents} from '../src/reference-cd.js';
 import {cdTracks,editCDTrack,replaceCDTracks,moveCDTrack,deleteCDTrack,addCDTrack} from '../src/cd-track-editing.js';
 import {cdTextPanel,cdTracksPanel,cdLayoutPanel} from '../src/cd-panels.js';
@@ -9,6 +9,8 @@ import {CD_DEFAULTS,resetCDSurfaces,updateCDLayout,updateCDTrackLayout} from '..
 import {isCDMode,modeDefaultSurface,modeSurfaces,modeTitle,normalizeEditorMode} from '../src/media-formats.js';
 import {previewGeometry,previewCrop} from '../src/preview-geometry.js';
 import {remixGeometry} from '../src/overlay-remix-plan.js';
+import {resetJCardStandardBlocks} from '../src/jcard-standard-reset.js';
+import {syncReferenceJCardFonts} from '../src/jcard-font.js';
 
 test('CD editing preserves order across former sides and never applies an invalid duration',()=>{
  const p=createProject(),all=cdTracks(p);assert.equal(all.length,9);
@@ -90,14 +92,14 @@ test('actual CD layout controls change columns and track placement without modif
   else assert.equal(p.layout.cdLabelHub,true);
  }
 });
-test('the shared reset command preserves artwork and reference archives belonging to another format',()=>{
+test('the J-card reset command preserves other formats and is inactive in their editors',()=>{
  const resetCase=app.slice(app.indexOf("case 'reset-layout':"),app.indexOf("case 'blank':",app.indexOf("case 'reset-layout':")));
  for(const mode of ['jcard','label','cd-label','cd-insert','cd-tray']){
-  const p=createProject();p.editorMode=mode;p.referenceCDContentTemplate={source:'cdContents',sentinel:'CD archive'};p.referenceFlowArchive={sentinel:'Cassette archive'};
+  const p=mode==='jcard'?importReference(createProject(),'https://vhs.texs.org/en/jcard?musicArtist=Artist&musicAlbum=Album'):createProject();p.editorMode=mode;if(mode==='jcard')p.surfaces.outer.find(layer=>layer.source==='spine').x+=5;p.referenceCDContentTemplate={source:'cdContents',sentinel:'CD archive'};p.referenceFlowArchive={sentinel:'Cassette archive'};
   p.referenceFlowTemplate={sentinel:'Cassette template'};p.layout.referenceTemplate=true;p.referenceFreePlace={mode:isCDMode(mode)?'jcard':'cd-insert',sentinel:'Other format'};
   const other=isCDMode(mode)?['outer','inner','labelA','labelB']:['cdLabel','cdFront','cdInside','cdTray','cdTrayInside'],before=Object.fromEntries(other.map(surface=>[surface,clone(p.surfaces[surface])])),calls={history:0,saved:0};
-  new Function('p','mode','calls','isCDMode','resetCDSurfaces','resetSurfaces',`let selected='';const checkpoint=()=>calls.history++,changed=()=>calls.saved++,toast=()=>{};switch('reset-layout'){${resetCase}}`)(p,mode,calls,isCDMode,resetCDSurfaces,resetSurfaces);
-  for(const surface of other)assert.deepEqual(p.surfaces[surface],before[surface]);assert.deepEqual(p.referenceFreePlace,{mode:isCDMode(mode)?'jcard':'cd-insert',sentinel:'Other format'});assert.deepEqual(calls,{history:1,saved:1});
+  new Function('p','mode','calls','isCDMode','resetCDSurfaces','resetSurfaces','resetJCardStandardBlocks',`let selected='';const checkpoint=()=>calls.history++,changed=()=>calls.saved++,toast=()=>{};switch('reset-layout'){${resetCase}}`)(p,mode,calls,isCDMode,resetCDSurfaces,resetSurfaces,resetJCardStandardBlocks);
+  for(const surface of other)assert.deepEqual(p.surfaces[surface],before[surface]);assert.deepEqual(p.referenceFreePlace,{mode:isCDMode(mode)?'jcard':'cd-insert',sentinel:'Other format'});assert.deepEqual(calls,mode==='jcard'?{history:1,saved:1}:{history:0,saved:0});
   if(isCDMode(mode)){assert.deepEqual(p.referenceFlowArchive,{sentinel:'Cassette archive'});assert.deepEqual(p.referenceFlowTemplate,{sentinel:'Cassette template'});assert.equal(p.layout.referenceTemplate,true)}else assert.deepEqual(p.referenceCDContentTemplate,{source:'cdContents',sentinel:'CD archive'});
  }
 });
@@ -117,11 +119,11 @@ test('the actual refresh restores a saved CD format and offers only its valid pr
   const p=createProject();p.editorMode=mode;p.layout.cdInsertDouble=true;p.layout.cdTrayDouble=true;
   const inputs={},classes=[],nodes=[{dataset:{mode},classList:{toggle:()=>{}}}],document={body:{classList:{toggle:(name,value)=>classes.push([name,value])}},querySelectorAll:selector=>selector==='[data-mode]'?nodes:[]};
   const $=name=>inputs[name]||=(name==='importTarget'?{options:[{textContent:''}],value:'A'}:{});
-  const state=new Function('project','$','document','normalizeEditorMode','isCDMode','modeSurfaces','modeDefaultSurface','modeTitle',`
+  const state=new Function('project','$','document','normalizeEditorMode','isCDMode','modeSurfaces','modeDefaultSurface','modeTitle','syncReferenceJCardFonts',`
    let p=project,mode='jcard',surface='outer',bothView=false,tab='tracks',cropEditing=true;const syncToolNavigation=()=>{},draw=()=>{},renderPanel=()=>{},renderInspector=()=>{};
    ${refresh}
    full();return {mode,surface,bothView};
-  `)(p,$,document,normalizeEditorMode,isCDMode,modeSurfaces,modeDefaultSurface,modeTitle);
+  `)(p,$,document,normalizeEditorMode,isCDMode,modeSurfaces,modeDefaultSurface,modeTitle,syncReferenceJCardFonts);
   assert.equal(state.mode,mode);assert.equal(state.surface,side);assert.equal(inputs.importTarget.disabled,true);assert.equal(inputs.importTarget.value,'both');
   assert.match(inputs.surfaces.innerHTML,new RegExp(`data-surface="${side}"`));assert.doesNotMatch(inputs.surfaces.innerHTML,/data-surface="(?:outer|labelA)"/);
   assert.ok(classes.some(([name,value])=>name==='cd-mode'&&value));
