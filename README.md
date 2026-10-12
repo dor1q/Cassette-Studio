@@ -2,6 +2,8 @@
 
 Редактор кассет и CD для Windows x64: J-card, Cassette Label, CD Labels, CD Inserts (Cover) и CD Tray Card (Back). Скачайте [portable-приложение](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.6/Cassette-Studio-2.4.6-Portable.exe) без установки либо [установщик](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.6/Cassette-Studio-2.4.6-Setup.exe). Все выпуски доступны в [GitHub Releases](https://github.com/dor1q/Cassette-Studio/releases/latest). Node.js и отдельный браузер для готового приложения не нужны. Проекты и подключения хранятся отдельно от программы; подробности — в [WINDOWS.md](WINDOWS.md).
 
+Для запуска прямо из папки скачайте [готовый ZIP](https://github.com/dor1q/Cassette-Studio/releases/download/v2.4.6/Cassette-Studio-2.4.6-Folder.zip), распакуйте его целиком и откройте `Cassette Studio.exe`. Этот вариант проверен при ошибке запуска Portable `0xc0000142`; причина ошибки пока не установлена. EXE должен оставаться рядом с остальными файлами папки.
+
 Для запуска из исходников установите Node.js и выполните `npm ci`, затем `npm run build`. После этого выполните `npm start` и откройте http://127.0.0.1:8769/ либо запустите `START.cmd`. Для проверки используйте `npm test`; для запуска собственного окна — `npm run desktop`, для сборки Windows-приложения — `npm run desktop:build`.
 
 ## Изменения в 2.4.6
