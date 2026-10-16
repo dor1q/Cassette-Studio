@@ -49,7 +49,9 @@ test('imported J-card reposition retains the original flow, styles and independe
  assert.deepEqual(Object.values(p.surfaces).flat().filter(layer=>layer.referenceFlow).map(layer=>layer.id),sourceIds);
  copies.forEach((layer,index)=>assert.deepEqual(layer,copyBefore[index]));
  assert.equal(findReferenceFlowCopySource(p,copies[0]).layer.id,flow.id);assert.deepEqual(flowText(p,copies[0],'outer'),flowText(p,flow,'outer'));
- const text=Object.entries(p.surfaces).flatMap(([surface,layers])=>layers.filter(layer=>layer.referenceFlow).map(layer=>flowText(p,layer,surface).text)).join('\n');
+ // Structured headings can wrap inside these deliberately large type faces.
+ // Reposition must preserve every token exactly once across all viewports.
+ const text=Object.entries(p.surfaces).flatMap(([surface,layers])=>layers.filter(layer=>layer.referenceFlow).map(layer=>flowText(p,layer,surface).text)).join('').replace(/\s/g,'');
  for(const token of ['ARTISTTOKEN','ALBUMTOKEN','TRACKTOKEN','LYRICTOKEN','CREDITSTOKEN'])assert.equal((text.match(new RegExp(token,'g'))||[]).length,1);
  assert.match(renderSvg(p,'outer').svg,/CUSTOMTOKEN/);
 });

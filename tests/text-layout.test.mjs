@@ -10,6 +10,31 @@ const layer=props=>makeLayer('text',{font:'Arial',size:1,w:6,h:20,autoFit:false,
 const textNodes=svg=>Array.from(svg.matchAll(/<text\b[^>]*>([\s\S]*?)<\/text>/g),match=>match[1]);
 const visible=svg=>textNodes(svg).map(text=>text.replace(/<[^>]+>/g,''));
 
+test('prepared runs resume by original grapheme offsets after wrapping, spaces and hard breaks',()=>{
+ const preparedGlyphs=Array.from('AA   BB\nCC\n\nDD',text=>({text,bold:true}));
+ const style=layer({w:4,h:100}),options={measureText:metric,preparedGlyphs};
+ const result=textLayout('',style,options);
+ assert.deepEqual(result.lineRuns.map(runs=>runs.map(run=>run.text).join('')),['AA','BB','CC','','DD']);
+ assert.deepEqual(result.lineSourceEnds,[2,8,11,12,14]);
+ const resumed=textLayout('',style,{...options,preparedGlyphs:preparedGlyphs.slice(result.lineSourceEnds[0])});
+ assert.deepEqual(resumed.lineRuns,result.lineRuns.slice(1));
+ assert.equal(resumed.lineSourceEnds.at(-1),preparedGlyphs.length-2);
+ assert.ok(result.lineRuns.flat().every(run=>run.bold));
+ assert.ok(preparedGlyphs.every(glyph=>!Object.hasOwn(glyph,'sourceEnd')));
+});
+
+test('prepared runs keep literal Markdown punctuation and uppercase expansion source boundaries',()=>{
+ const preparedGlyphs=[{text:'ß',italic:true},{text:'#'},{text:'*'}];
+ const result=textLayout('',layer({w:2,uppercase:true}),{measureText:(_text,_style,_size)=>Array.from(_text).length,preparedGlyphs});
+ assert.deepEqual(result.lineRuns.map(runs=>runs.map(run=>run.text).join('')),['SS','#*']);
+ assert.deepEqual(result.lineSourceEnds,[1,3]);
+ assert.equal(result.lineRuns[0][0].italic,true);
+ assert.equal(result.lineRuns[1][0].heading,undefined);
+ const narrow=textLayout('',layer({w:1,uppercase:true}),{measureText:text=>Array.from(text).length,preparedGlyphs:[{text:'ß'}]});
+ assert.deepEqual(narrow.lineRuns.map(runs=>runs.map(run=>run.text).join('')),['SS']);
+ assert.deepEqual(narrow.lineSourceEnds,[1]);assert.equal(narrow.overflow,true);
+});
+
 test('wrapping measures visible bold and italic glyphs, never Markdown delimiters',()=>{
  const calls=[],measureText=(...args)=>{calls.push(args);return metric(...args)};
  assert.deepEqual(textLayout('AA BB',layer(),{measureText}).lines,['AA BB']);

@@ -147,20 +147,22 @@ export function rebuildReferenceFlow(project,template){
   if(source)copy.referenceFlowCopySource=source;
  }
  for(const surface of ['outer','inner'])project.surfaces[surface]=project.surfaces[surface].filter(l=>!l.referenceFlow);
- let index=0,insideIndex=0;const activeSlots=new Set(),columns=project.layout.columns||1,padX=36*REFERENCE_UNIT,padY=40*REFERENCE_UNIT,gap=24*REFERENCE_UNIT;
+ let index=0,insideIndex=0;const activeSlots=new Set(),columns=project.layout.columns||1,padLeft=42*REFERENCE_UNIT,padRight=100*REFERENCE_UNIT,padY=72*REFERENCE_UNIT,gap=100*REFERENCE_UNIT;
  for(const surface of ['outer','inner']){
   if(surface==='inner'&&!project.layout.double)continue;
-  for(const panel of panelRects(project,surface).filter(r=>r.index>=(surface==='outer'?3:2)))for(let column=0;column<columns;column++){
-   const width=(panel.w-2*padX-gap*(columns-1))/columns;
+  const contentPanels=panelRects(project,surface).filter(r=>r.index>=(surface==='outer'?3:2));
+  const minimumWidth=Math.min(...contentPanels.map(panel=>panel.w));
+  for(const panel of contentPanels)for(let column=0;column<columns;column++){
+   const width=Math.max(.1,(minimumWidth-padLeft-padRight-gap*(columns-1))/columns);
    const slot=flowSlot({surface,panel:panel.index,column}),matched=candidates.get(slot),old=matched||template,style=clone(old);activeSlots.add(slot);
    if(!matched)for(const key of ['referenceBlock','referenceSuspendedBlock','referenceFreePlaceToken','referenceBlockCopy','referenceManualGeometry','referenceFlowCopyIndex','referenceFlowCopySource'])delete style[key];
    delete style.flowSurface;
-   const height=(project.layout.height-2*padY)*(columns>1?(project.layout.columnHeight||100)/100:1);
+   const height=(project.layout.height-2*padY)*(columns>1?clamp(project.layout.columnHeight||100,20,100)/100:1);
    project.surfaces[surface].push(makeLayer('text',{
     ...style,id:matched?.id||uid(),source:'referenceContents',category:surface==='inner'?'insideTracks':'referenceContents',referenceFlow:true,referenceFlowSurface:surface,
     referencePanelIndex:panel.index,referenceColumn:column,flowIndex:index++,insideIndex:surface==='inner'?insideIndex++:undefined,
     name:(surface==='inner'?'Содержимое оборота':'Содержимое внешней панели')+' · '+(panel.index-1)+(columns>1?' / '+(column+1):''),
-    x:panel.x+padX+column*(width+gap),y:padY,w:width,h:height,rotation:0,autoFit:false,visible:matched?old.visible!==false:previous.length||archived.length?true:old.visible!==false,locked:matched?!!old.locked:false,
+    x:panel.x+(panel.w-minimumWidth)/2+padLeft+column*(width+gap),y:padY,w:width,h:height,rotation:0,autoFit:false,visible:matched?old.visible!==false:previous.length||archived.length?true:old.visible!==false,locked:matched?!!old.locked:false,
     ...(matched&&(old.referenceBlock||old.referenceManualGeometry||old.locked)?{x:old.x,y:old.y,w:old.w,h:old.h,rotation:old.rotation}:{})
    }));
   }

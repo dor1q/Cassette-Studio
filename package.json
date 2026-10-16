@@ -1,6 +1,6 @@
 {
   "name": "cassette-studio",
-  "version": "2.4.6",
+  "version": "2.4.7",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@bwip-js/browser": "^4.7.0",
+    "commonmark": "0.31.2",
     "jspdf": "^4.2.1",
     "qrcode": "^1.5.4"
   },

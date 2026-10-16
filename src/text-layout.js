@@ -67,7 +67,8 @@ function markdownLine(runs){
 
 function paragraphs(glyphs,literalText=false,markdownHeadings=true){
  const result=[[]];
- for(const glyph of glyphs){if(glyph.text==='\n'||glyph.text==='\r\n')result.push([]);else if(glyph.text!=='\r')result.at(-1).push(glyph)}
+ for(const glyph of glyphs){if(glyph.text==='\n'||glyph.text==='\r\n'){result.at(-1).sourceEnd=glyph.sourceEnd;result.push([])}else if(glyph.text!=='\r')result.at(-1).push(glyph)}
+ result.at(-1).sourceEnd=glyphs.at(-1)?.sourceEnd??0;
  for(let index=0;!literalText&&markdownHeadings&&index<result.length;index++){
   const paragraph=result[index],prefix=paragraph.map(glyph=>glyph.text).join('').match(/^#{1,6}\s*/)?.[0];
   if(!prefix)continue;
@@ -98,11 +99,14 @@ function singleLineGlyphs(glyphs){
  return result;
 }
 
-export function layoutStyledText(value,layer,{measureText,albumSpan=null,literalText=!!layer.literalText,markdownHeadings=layer.markdownHeadings!==false,nowrap=!!layer.nowrap,singleLine=!!layer.singleLine}={}){
- const glyphs=styledGlyphs(value,layer,{albumSpan,literalText});
- const source=paragraphs(nowrap&&singleLine?singleLineGlyphs(glyphs):glyphs,literalText,markdownHeadings);
+export function layoutStyledText(value,layer,{measureText,albumSpan=null,preparedGlyphs=null,literalText=!!layer.literalText,markdownHeadings=layer.markdownHeadings!==false,nowrap=!!layer.nowrap,singleLine=!!layer.singleLine}={}){
+ // Structured J-card content has already been parsed. Keep its source offsets
+ // through wrapping so another column can resume without reparsing emphasis.
+ const prepared=Array.isArray(preparedGlyphs);
+ const glyphs=prepared?preparedGlyphs.map((glyph,index)=>({...glyph,text:(glyph.style?.uppercase??layer.uppercase)?glyph.text.toUpperCase():glyph.text,sourceEnd:index+1})):styledGlyphs(value,layer,{albumSpan,literalText});
+ const source=paragraphs(nowrap&&singleLine?singleLineGlyphs(glyphs):glyphs,literalText||prepared,markdownHeadings&&!prepared);
  const calculate=size=>{
-  const lineRuns=[],widths=[],availableWidths=[],lineHeights=[],baselines=[],insets=[];
+  const lineRuns=[],widths=[],availableWidths=[],lineHeights=[],baselines=[],insets=[],lineSourceEnds=[],lineGlyphs=[];
   let top=0;
   // A hidden artist or a wrapped album-only line must not retain the
   // artist's larger leading. Empty paragraphs still use the base face.
@@ -113,17 +117,19 @@ export function layoutStyledText(value,layer,{measureText,albumSpan=null,literal
    return measuredRunsWidth(runs,layer,size,measureText)<=available+1e-9;
   };
   const append=glyphs=>{
-   const runs=glyphRuns(glyphs),maxSize=maxRunSize(runs);
+   const visibleGlyphs=prepared?glyphs.map(({sourceEnd,...glyph})=>glyph):glyphs;
+   const runs=glyphRuns(visibleGlyphs),maxSize=maxRunSize(runs);
    const height=maxSize*layer.lineHeight;
    lineRuns.push(runs);widths.push(measuredRunsWidth(runs,layer,size,measureText));lineHeights.push(height);baselines.push(top+.9*maxSize);
    const bounds=layer.flapTapered?taperedInsets(layer,size,lineRuns.length-1,top+height/2):null;
    if(bounds)insets.push(bounds);
    availableWidths.push(bounds?Math.max(size,layer.w-bounds.left-bounds.right):layer.w);
    top+=height;
+   if(prepared){lineSourceEnds.push(glyphs.at(-1)?.sourceEnd??0);lineGlyphs.push(visibleGlyphs)}
   };
   for(const paragraph of source){
-   if(nowrap){append(paragraph);continue}
-   const words=paragraphWords(paragraph);if(!words.length){append([]);continue}
+   if(nowrap){append(paragraph);if(prepared)lineSourceEnds[lineSourceEnds.length-1]=paragraph.sourceEnd;continue}
+   const words=paragraphWords(paragraph);if(!words.length){append([]);if(prepared)lineSourceEnds[lineSourceEnds.length-1]=paragraph.sourceEnd;continue}
    let current=[];
    for(const word of words){
     const candidate=current.length?[...current,word.space||{text:' '},...word.glyphs]:word.glyphs;
@@ -133,8 +139,9 @@ export function layoutStyledText(value,layer,{measureText,albumSpan=null,literal
     for(const glyph of word.glyphs){if(current.length&&!fits([...current,glyph])){append(current);current=[]}current.push(glyph)}
    }
    if(current.length)append(current);
+   if(prepared)lineSourceEnds[lineSourceEnds.length-1]=paragraph.sourceEnd;
   }
-  return {lines:lineRuns.map(markdownLine),lineRuns,widths,availableWidths,lineHeights,baselines,height:top,...(layer.flapTapered?{insets}:{})};
+  return {lines:lineRuns.map(markdownLine),lineRuns,widths,availableWidths,lineHeights,baselines,height:top,...(prepared?{lineSourceEnds,lineGlyphs}:{}),...(layer.flapTapered?{insets}:{})};
  };
  let size=layer.size,layout=calculate(size);
  const tooWide=margin=>layout.widths.some((width,index)=>width>layout.availableWidths[index]+margin);
